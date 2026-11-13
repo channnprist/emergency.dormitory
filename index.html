@@ -174,6 +174,8 @@
     font-weight: 700;
   }
   .live-banner button { border: 0; background: rgba(255,255,255,.2); color: #fff; width: 32px; height: 32px; border-radius: 99px; font-size: 18px; cursor: pointer; }
+  .live-banner.sos-banner { top: 0; left: 0; right: 0; border-radius: 0; z-index: 75; background: #7f1d1d; }
+  .live-banner.sos-banner button { width: auto; height: auto; padding: 8px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; }
   .side-btn {
     display: flex; align-items: center; gap: 10px; width: 100%;
     text-align: left; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px;
@@ -441,6 +443,7 @@ const DATA_KEY = 'kmitl-dorm-flood-v1-data';
 const PREF_KEY = 'kmitl-dorm-flood-v1-pref';
 const SESSION_KEY = 'kmitl-dorm-flood-v1-session';
 const DAY = 24 * 60 * 60 * 1000;
+const SOS_FRESH = 5 * 60 * 1000;
 const DEFAULT_ADMIN_CODE = 'KMITL-DORM';
 const CAMPUS_LAT = 13.7299;
 const CAMPUS_LNG = 100.7782;
@@ -684,6 +687,23 @@ function parseRoom(raw) {
   const roomText = String(room).padStart(2, '0');
   return { building: String(building), floor: floor, room: room, canonical: building + '-' + floor + roomText };
 }
+function parseStudentId(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!/^\d{8}$/.test(digits)) return null;
+  return digits;
+}
+function studentIdError() {
+  return t(
+    'รหัสนักศึกษาต้องเป็นตัวเลข 8 หลักเท่านั้น เช่น 67010123',
+    'Student ID must be exactly 8 digits, for example 67010123.'
+  );
+}
+function studentIdField(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+  return '<label class="label">' + esc(t('รหัสนักศึกษา', 'Student ID')) + '</label>' +
+    '<input class="input mb-1" name="studentId" data-kind="student" inputmode="numeric" pattern="[0-9]*" minlength="8" maxlength="8" min="10000000" max="99999999" autocomplete="off" required value="' + esc(digits) + '">' +
+    '<p class="field-hint">' + esc(t('ตัวเลข 8 หลักเท่านั้น เช่น 67010123', 'Exactly 8 digits, for example 67010123.')) + '</p>';
+}
 function roomError() {
   return t(
     'เลขห้องไม่ถูกต้อง ใช้ได้แค่ตัวเลขกับขีดเดียว ในรูปแบบอาคาร-ชั้นห้อง เช่น 1-504 (อาคาร 1 ชั้น 5 ห้อง 04), 9-716 (อาคาร 9 ชั้น 7 ห้อง 16), 12-1020 (อาคาร 12 ชั้น 10 ห้อง 20) อาคาร 1–8 มีชั้น 1–5 และห้อง 01–10 อาคาร 9–12 มีชั้น 1–10 และห้อง 01–20 ไม่มีชั้น G หรือ 0',
@@ -725,13 +745,27 @@ function roomFromForm(fd) {
   if (!building && !floorRoom && fd.get('room')) return parseRoom(fd.get('room'));
   return parseRoom(building + '-' + floorRoom);
 }
+function roomLiveError(building, floorRoom) {
+  const b = String(building || '').replace(/\D/g, '');
+  const f = String(floorRoom || '').replace(/\D/g, '');
+  if (!b && !f) return '';
+  if (b && (!/^\d{1,2}$/.test(b) || Number(b) < 1 || Number(b) > 12)) return roomError();
+  if (!f || !b) return '';
+  if (f.charAt(0) === '0') return roomError();
+  const n = Number(b);
+  if (n <= 8 && Number(f.charAt(0)) > 5) return roomError();
+  if (n <= 8 && f.length < 3) return '';
+  if (n >= 9 && f.length < 3) return '';
+  return parseRoom(b + '-' + f) ? '' : roomError();
+}
 function roomField(value) {
   const parts = roomParts(value);
   return '<label class="label">' + esc(t('เลขห้อง', 'Room number')) + '</label>' +
-    '<div class="room-split"><input class="input" name="buildingNo" data-kind="building" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-label="' + esc(t('อาคาร', 'Building')) + '" placeholder="9" required value="' + esc(parts.building) + '">' +
+    '<div class="room-split"><input class="input" name="buildingNo" data-kind="building" inputmode="numeric" pattern="[0-9]*" min="1" max="12" maxlength="2" autocomplete="off" aria-label="' + esc(t('อาคาร', 'Building')) + '" placeholder="9" required value="' + esc(parts.building) + '">' +
     '<span class="room-dash" aria-hidden="true">-</span>' +
-    '<input class="input" name="floorRoom" data-kind="floorroom" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="' + esc(t('ชั้นและห้อง', 'Floor and room')) + '" placeholder="716" required value="' + esc(parts.floorRoom) + '"></div>' +
-    '<p class="field-hint">' + esc(t('ช่องซ้ายคืออาคาร 1–12 ช่องขวาคือชั้นกับห้อง เช่น 9 และ 716 = 9-716 · อาคาร 1–8 ใช้ชั้น 1–5 ห้อง 01–10 · อาคาร 9–12 ใช้ชั้น 1–10 ห้อง 01–20', 'Left box is the building (1–12). Right box is floor plus room, so 9 and 716 become 9-716. Buildings 1–8: floors 1–5, rooms 01–10. Buildings 9–12: floors 1–10, rooms 01–20.')) + '</p>';
+    '<input class="input" name="floorRoom" data-kind="floorroom" inputmode="numeric" pattern="[0-9]*" min="101" max="1020" maxlength="4" autocomplete="off" aria-label="' + esc(t('ชั้นและห้อง', 'Floor and room')) + '" placeholder="716" required value="' + esc(parts.floorRoom) + '"></div>' +
+    '<p class="field-hint">' + esc(t('ช่องซ้ายคืออาคาร 1–12 ช่องขวาคือชั้นกับห้อง เช่น 9 และ 716 = 9-716 · อาคาร 1–8 ใช้ชั้น 1–5 ห้อง 01–10 · อาคาร 9–12 ใช้ชั้น 1–10 ห้อง 01–20', 'Left box is the building (1–12). Right box is floor plus room, so 9 and 716 become 9-716. Buildings 1–8: floors 1–5, rooms 01–10. Buildings 9–12: floors 1–10, rooms 01–20.')) + '</p>' +
+    '<p class="room-error form-error hidden"></p>';
 }
 function phoneField(value, required) {
   return '<label class="label">' + esc(required ? t('เบอร์โทร', 'Phone') : t('เบอร์โทร (ไม่บังคับ)', 'Phone (optional)')) + '</label>' +
@@ -1362,6 +1396,7 @@ async function disconnectFirebase() {
 let siren = null;
 let burstTimer = 0;
 let bannerTimer = 0;
+let sosExpiryTimer = 0;
 function ensureAudio() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return false;
@@ -1451,16 +1486,53 @@ function showBanner(th, en) {
   if (bannerTimer) clearTimeout(bannerTimer);
   bannerTimer = setTimeout(function () { root.innerHTML = ''; }, 8000);
 }
+function freshSos(alarm) {
+  return !!(alarm && alarm.kind === 'sos' && !alarm.resolved && !alarm.acknowledged && (Date.now() - alarm.createdAt) <= SOS_FRESH);
+}
+function showSosBanner(alarm) {
+  const root = document.getElementById('bannerRoot');
+  if (!root || !alarm) return;
+  if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = 0; }
+  const text = t('SOS จากนักศึกษา', 'Student SOS') + ' · ' + (alarm.reporterName || '') + ' · ' + (alarm.room || '') + (alarm.phone ? ' · ' + alarm.phone : '');
+  root.innerHTML = '<div class="live-banner sos-banner" data-sos-banner role="alert"><b>' + esc(text) + '</b><button type="button" data-act="ack-sos" data-id="' + esc(alarm.id) + '">' + esc(t('รับทราบเหตุ', 'Acknowledge')) + '</button></div>';
+}
+function notifyAdminSos(alarm) {
+  if (!alarm || !isAdmin()) return;
+  showSosBanner(alarm);
+  state.session.sosNotified = state.session.sosNotified || {};
+  if (state.session.sosNotified[alarm.id] || !window.Notification) return;
+  state.session.sosNotified[alarm.id] = true;
+  const title = t('SOS จากนักศึกษา', 'Student SOS');
+  const body = (alarm.reporterName || '') + ' · ' + (alarm.room || '') + (alarm.phone ? ' · ' + alarm.phone : '');
+  const fire = function () {
+    try { new Notification(title, { body: body, tag: alarm.id }); } catch (e) { /* this browser blocked it */ }
+  };
+  if (Notification.permission === 'granted') fire();
+  else if (Notification.permission !== 'denied') Notification.requestPermission().then(function (p) { if (p === 'granted') fire(); });
+}
+function armSosExpiry(alarm) {
+  if (sosExpiryTimer) clearTimeout(sosExpiryTimer);
+  if (!alarm) { sosExpiryTimer = 0; return; }
+  const left = alarm.createdAt + SOS_FRESH - Date.now();
+  sosExpiryTimer = setTimeout(function () {
+    sosExpiryTimer = 0;
+    state.session.alarmSig = '';
+    stopSiren();
+    scanAlarms();
+  }, Math.max(0, left) + 40);
+}
 
 function pendingAlarms() {
   if (!state.user) return [];
   const floor = String(state.user.floor || '');
   return (state.data.alarms || []).filter(function (a) {
     if (!a || a.resolved) return false;
+    if (a.kind === 'sos') {
+      if (!isAdmin() || a.reporterId === state.user.id || a.acknowledged) return false;
+      return (Date.now() - a.createdAt) <= SOS_FRESH;
+    }
     const acked = (a.acks || []).indexOf(state.user.id) >= 0;
-    if (acked) return false;
-    if (a.kind === 'sos') return true;
-    if (a.kind !== 'broadcast' || isAdmin()) return false;
+    if (acked || a.kind !== 'broadcast' || isAdmin()) return false;
     const floors = a.floors || [];
     return floors.indexOf('all') >= 0 || floors.indexOf(floor) >= 0;
   }).sort(function (a, b) { return b.createdAt - a.createdAt; });
@@ -1469,10 +1541,15 @@ function pendingAlarms() {
 function scanAlarms() {
   const pending = pendingAlarms();
   const newest = pending[0];
+  const sos = pending.filter(function (a) { return a.kind === 'sos'; })[0];
+  if (sos) armSosExpiry(sos);
   if (newest && !state.session.heard[newest.id]) {
     state.session.heard[newest.id] = true;
-    state.session.needSoundTap = newest.kind === 'sos' ? !startSiren() : !playUrgentBurst();
-    if (state.session.modal) {
+    if (newest.kind === 'sos') {
+      if (document.visibilityState === 'visible') state.session.needSoundTap = !startSiren();
+      else notifyAdminSos(newest);
+    } else state.session.needSoundTap = !playUrgentBurst();
+    if (state.session.modal && newest.kind !== 'sos') {
       state.session.modal = null;
       state.session.skipModalCapture = true;
     }
@@ -1967,7 +2044,10 @@ function renderAlerts() {
     const floors = a.floors || [];
     return floors.indexOf('all') >= 0 || floors.indexOf(String(state.user.floor || '')) >= 0;
   }).sort(function (a, b) { return b.createdAt - a.createdAt; });
-  return head(t('สัญญาณและ SOS', 'Alerts and SOS'), t('สัญญาณฉุกเฉินดังให้ทุกคนที่เปิดหน้านี้อยู่ จนกว่าจะรับทราบ', 'An SOS siren sounds for everyone on this page until they acknowledge it.')) +
+  return head(t('สัญญาณและ SOS', 'Alerts and SOS'), isAdmin()
+    ? t('SOS ที่ยังไม่รับทราบและเกิดภายใน 5 นาทีจะดังบนหน้านี้จนกว่าจะกดรับทราบเหตุ', 'An SOS from the last 5 minutes sounds on this page until you acknowledge it.')
+    : t('SOS ส่งถึงผู้ดูแลหอเท่านั้น เครื่องของคุณจะไม่ส่งเสียงไซเรน', 'An SOS goes to dorm staff only. This device does not sound the siren.')) +
+    (state.session.sosConfirm ? '<div class="card p-3 mb-3 text-sm" style="background:#ecfdf5;border-color:#86efac;color:#166534">' + esc(t('ส่งสัญญาณขอความช่วยเหลือ SOS ไปยังผู้ดูแลหอพักเรียบร้อยแล้ว', 'SOS sent to Dormitory Admin')) + '</div>' : '') +
     (isAdmin()
       ? '<button type="button" class="btn btn-danger btn-block mb-3" data-act="broadcast-open">' + esc(t('ส่งสัญญาณถึงชั้น', 'Send a floor alarm')) + '</button>'
       : '<button type="button" class="btn btn-danger btn-block mb-3" data-act="sos-open">SOS · ' + esc(t('เรียกเจ้าหน้าที่', 'Call staff')) + '</button>') +
@@ -2018,7 +2098,7 @@ function alarmHistoryCard(a) {
   return '<article class="card p-3 mb-2"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-xs text-slate-400">' + esc(a.kind === 'sos' ? t('นักศึกษา → เจ้าหน้าที่', 'Student → staff') : t('เจ้าหน้าที่ → ชั้น', 'Staff → floors')) + ' · ' + esc(floors) + '</div>' +
     '<div class="font-semibold">' + esc(title) + '</div>' +
     (a.kind === 'broadcast' ? textBlock(a.body, { main: 'text-sm mt-1' }) : textBlock(a.note, { main: 'text-sm mt-1' })) +
-    '<div class="text-xs text-slate-400 mt-1">' + esc(relTime(a.createdAt)) + (a.resolved ? ' · ' + esc(t('ปิดแล้ว', 'Cleared')) : '') + '</div></div>' +
+    '<div class="text-xs text-slate-400 mt-1">' + esc(relTime(a.createdAt)) + (a.acknowledged ? ' · ' + esc(t('รับทราบแล้ว', 'Acknowledged')) : '') + (a.resolved ? ' · ' + esc(t('ปิดแล้ว', 'Cleared')) : '') + (isAdmin() && a.kind === 'sos' && a.phone ? ' · ' + esc(a.phone) : '') + '</div></div>' +
     (a.level === 'critical' ? '<span class="badge badge-red">' + esc(t('วิกฤต', 'Critical')) + '</span>' : '<span class="badge badge-amber">' + esc(t('เตือน', 'Warning')) + '</span>') +
     '</div>' + (isAdmin() && !a.resolved ? '<button type="button" class="btn btn-ghost btn-sm mt-2" data-act="resolve-alarm" data-id="' + esc(a.id) + '">' + esc(t('ปิดสัญญาณ', 'Clear alarm')) + '</button>' : '') +
     '</article>';
@@ -2083,7 +2163,7 @@ function renderLogin() {
     '<form id="loginForm" data-form="login"><input type="hidden" name="role" value="' + esc(role) + '">' +
     (role === 'student'
       ? '<label class="label">' + esc(t('ชื่อ', 'Name')) + '</label><input class="input mb-3" name="name" required value="' + val('name') + '">' +
-        '<label class="label">' + esc(t('รหัสนักศึกษา', 'Student ID')) + '</label><input class="input mb-3" name="studentId" required value="' + val('studentId') + '">' +
+        studentIdField(d.studentId || '') +
         roomField(d.room || '') + phoneField(d.phone || '', false)
       : '<label class="label">' + esc(t('ชื่อเจ้าหน้าที่', 'Staff name')) + '</label><input class="input mb-3" name="name" required value="' + val('name') + '">' +
         '<label class="label">' + esc(t('รหัสพนักงาน', 'Staff ID')) + '</label><input class="input mb-3" name="staffId" required value="' + val('staffId') + '">' +
@@ -2181,26 +2261,31 @@ function renderView() {
 
 function renderAlarmOverlay(pending) {
   const newest = pending[0];
-  const sosLive = pending.some(function (a) { return a.kind === 'sos'; });
-  if (sosLive) {
+  const sos = pending.filter(function (a) { return freshSos(a); })[0];
+  const visible = document.visibilityState !== 'hidden';
+  if (sos && visible) {
     if (!startSiren()) state.session.needSoundTap = true;
+    const banner = document.getElementById('bannerRoot');
+    if (banner && banner.querySelector('[data-sos-banner]')) banner.innerHTML = '';
+  } else if (sos && !visible) {
+    stopSiren();
+    notifyAdminSos(sos);
   } else if (!newest && !burstTimer) stopSiren();
-  const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length + '|' + (isAdmin() ? 'a' : 's');
+  const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length + '|' + (visible ? 'v' : 'h') + '|' + (isAdmin() ? 'a' : 's');
   if (sig === state.session.alarmSig) return;
   state.session.alarmSig = sig;
   const root = document.getElementById('alarmRoot');
-  if (!newest) { root.innerHTML = ''; return; }
+  if (!newest || (sos && !visible)) { root.innerHTML = ''; return; }
   const critical = newest.level === 'critical' || newest.kind === 'sos';
   let body = '';
   if (newest.kind === 'sos') {
-    body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('สัญญาณฉุกเฉิน · ดังให้ทุกคนที่เปิดหน้านี้อยู่', 'Emergency · sounding for everyone on this page')) + '</div>' +
+    body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('SOS จากนักศึกษา · ดังจนกว่าจะรับทราบเหตุ', 'Student SOS · sounding until you acknowledge')) + '</div>' +
       '<h2 class="mt-2 text-3xl font-semibold">' + esc(sosLabel(newest.sosType)) + '</h2>' +
       '<div class="mt-2 text-2xl font-semibold">' + esc(newest.room || '') + ' · ' + esc(buildingLabel(newest.building)) + '</div>' +
       textBlock(newest.note, { main: 'mt-3 text-lg', wrap: '' }) +
       '<div class="mt-2 text-sm opacity-80">' + esc(newest.reporterName || '') + ' · ' + esc(t('ชั้น', 'Floor')) + ' ' + esc(newest.floor || '—') + ' · ' + esc(relTime(newest.createdAt)) + '</div>' +
-      (isAdmin() && newest.phone ? '<a class="btn btn-ghost mt-3" href="' + telHref(newest.phone) + '">' + icon('phone') + esc(newest.phone) + '</a>' : '') +
-      '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="ack-alarm" data-id="' + esc(newest.id) + '">' + esc(t('รับทราบและปิดเสียงบนเครื่องนี้', 'Acknowledge and silence this device')) + '</button>' +
-      (isAdmin() ? '<button type="button" class="btn btn-block mt-2" style="background:#fff;color:#7f1d1d" data-act="resolve-alarm" data-id="' + esc(newest.id) + '">' + esc(t('ปิดสัญญาณให้ทุกคน', 'Clear for everyone')) + '</button>' : '');
+      (newest.phone ? '<a class="btn btn-ghost mt-3" href="' + telHref(newest.phone) + '">' + icon('phone') + esc(newest.phone) + '</a>' : '') +
+      '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="ack-sos" data-id="' + esc(newest.id) + '">' + esc(t('รับทราบเหตุ', 'Acknowledge')) + '</button>';
   } else {
     const floors = (newest.floors || []).indexOf('all') >= 0 ? t('ทุกชั้น', 'All floors') : (t('ชั้น', 'Floor') + ' ' + (newest.floors || []).join(', '));
     body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('สัญญาณจากผู้ดูแลหอ', 'Alarm from dorm staff')) + ' · ' + esc(floors) + '</div>' +
@@ -2381,14 +2466,15 @@ function profileForm() {
   const u = state.user;
   if (!u) return '';
   return '<form data-form="profile"><label class="label">' + esc(t('ชื่อ', 'Name')) + '</label><input class="input mb-3" name="name" required value="' + esc(u.name || '') + '">' +
-    (isStudent() ? roomField(u.room || '') + phoneField(u.phone || '', false) : '') +
+    (isStudent() ? studentIdField(u.studentId || '') + roomField(u.room || '') + phoneField(u.phone || '', false) : '') +
+    '<p id="formError" class="form-error hidden mb-3"></p>' +
     '<button class="btn btn-primary btn-block" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>' +
     '<button type="button" class="btn btn-ghost btn-block mt-2" data-act="logout">' + esc(t('ออกจากระบบ', 'Log out')) + '</button>' +
     (isStudent() ? '<p class="mt-3 text-xs text-slate-400">' + esc(t('ตัวอย่างสัญญาณชั้น 1 ถูกเปิดไว้ ถ้าเปลี่ยนไปชั้นอื่น สัญญาณนั้นจะไม่ขึ้นจนกว่าจะกลับมาชั้น 1', 'A sample floor 1 alarm is active. Other floors will not see it.')) + '</p>' : '');
 }
 function sosForm() {
   const u = state.user;
-  return '<form data-form="sos"><p class="text-sm text-slate-600 mb-3">' + esc(t('สัญญาณดังต่อเนื่องให้เจ้าหน้าที่และทุกคนที่เปิดหน้านี้อยู่ จนกว่าจะกดรับทราบ', 'A continuous siren plays for staff and everyone who has this page open, until they acknowledge it.')) + '</p>' +
+  return '<form data-form="sos"><p class="text-sm text-slate-600 mb-3">' + esc(t('สัญญาณนี้ไปที่ผู้ดูแลหอเท่านั้น เครื่องของคุณจะไม่ส่งเสียงไซเรน', 'This alert goes to dorm staff only. Your own device will not sound the siren.')) + '</p>' +
     '<span class="label">' + esc(t('ประเภท', 'Type')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
     SOS_TYPES.map(function (s, i) { return choice('sosType', s[0], t(s[1], s[2]), i === 0, s[0] === 'medical' || s[0] === 'fire' || s[0] === 'snake' ? 'danger' : ''); }).join('') +
     '</div>' + roomField(u.room || '') + phoneField(u.phone || '', true) +
@@ -2641,6 +2727,21 @@ function onClick(e) {
     if (banner) banner.innerHTML = '';
     return;
   }
+  if (act === 'ack-sos') {
+    if (!isAdmin()) return;
+    const id = btn.dataset.id;
+    stopSiren();
+    const banner = document.getElementById('bannerRoot');
+    if (banner) banner.innerHTML = '';
+    mutate(function (data) {
+      const alarm = findById(data.alarms, id);
+      if (!alarm) return;
+      alarm.acknowledged = true;
+      alarm.acks = alarm.acks || [];
+      if (alarm.acks.indexOf(state.user.id) < 0) alarm.acks.push(state.user.id);
+    });
+    return;
+  }
   if (act === 'ack-alarm') {
     const id = btn.dataset.id;
     mutate(function (data) {
@@ -2855,15 +2956,20 @@ function onSubmit(e) {
     return;
   }
   if (kind === 'profile') {
-    state.user.name = get('name');
+    const name = get('name');
+    if (!name) { showFormError(t('กรอกชื่อก่อน', 'Enter your name.')); return; }
     if (isStudent()) {
+      const sid = parseStudentId(get('studentId'));
       const parsed = roomFromForm(fd);
       const phone = parsePhone(get('phone'), false);
+      if (!sid) { showFormError(studentIdError()); return; }
       if (!parsed) { showFormError(roomError()); return; }
       if (!phone) { showFormError(phoneError()); return; }
+      state.user.studentId = sid;
       applyStay(parsed, phone.phone);
       if (phone.phone) rememberPhone(phone.phone);
     }
+    state.user.name = name;
     saveSession();
     closeModal();
     toast('บันทึกโปรไฟล์แล้ว', 'Profile saved.');
@@ -2918,10 +3024,10 @@ function submitLogin(fd, form) {
     finishLogin();
     return;
   }
-  const studentId = String(fd.get('studentId') || '').trim();
+  const studentId = parseStudentId(fd.get('studentId'));
   const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), false);
-  if (!studentId) { fail('กรอกรหัสนักศึกษา', 'Enter a student ID.'); return; }
+  if (!studentId) { fail(studentIdError(), studentIdError()); return; }
   if (!parsed) { fail(roomError(), roomError()); return; }
   if (!phone) { fail(phoneError(), phoneError()); return; }
   state.user = {
@@ -2961,6 +3067,9 @@ function enterDemoAdmin() {
 function finishLogin() {
   ensureAudio();
   if (state.user && state.user.phone) rememberPhone(state.user.phone);
+  if (isAdmin() && window.Notification && Notification.permission === 'default') {
+    Notification.requestPermission().catch(function () { /* dismissed */ });
+  }
   saveSession();
   state.session.view = 'home';
   state.session.heard = {};
@@ -2995,8 +3104,7 @@ function submitSos(fd) {
   applyStay(parsed, phone.phone);
   rememberPhone(phone.phone);
   saveSession();
-  ensureAudio();
-  startSiren();
+  state.session.sosConfirm = true;
   mutate(function (data) {
     data.alarms.unshift({
       id: uid('sos'),
@@ -3016,7 +3124,9 @@ function submitSos(fd) {
     });
   });
   closeModal();
-  toast('ส่งถึงเจ้าหน้าที่แล้ว', 'Staff have been alerted.');
+  state.session.view = 'alerts';
+  render();
+  toast('ส่งสัญญาณขอความช่วยเหลือ SOS ไปยังผู้ดูแลหอพักเรียบร้อยแล้ว', 'SOS sent to Dormitory Admin');
 }
 function submitBroadcast(fd) {
   const title = readBi(fd, 'title');
@@ -3598,11 +3708,39 @@ function boot() {
       const next = String(el.value || '').replace(/\D/g, '').slice(0, 10);
       if (el.value !== next) el.value = next;
     }
-    if (el.dataset.kind === 'building' || el.dataset.kind === 'floorroom') {
-      const max = el.dataset.kind === 'building' ? 2 : 4;
-      const next = String(el.value || '').replace(/\D/g, '').slice(0, max);
+    if (el.dataset.kind === 'student') {
+      const next = String(el.value || '').replace(/\D/g, '').slice(0, 8);
       if (el.value !== next) el.value = next;
     }
+    if (el.dataset.kind === 'building' || el.dataset.kind === 'floorroom') {
+      let next = String(el.value || '').replace(/\D/g, '').slice(0, el.dataset.kind === 'building' ? 2 : 4);
+      if (el.dataset.kind === 'floorroom' && el.form) {
+        const building = Number(String((el.form.querySelector('[data-kind="building"]') || {}).value || '').replace(/\D/g, ''));
+        if (building >= 1 && building <= 8) next = next.slice(0, 3);
+      }
+      if (el.value !== next) el.value = next;
+      const box = el.form && el.form.querySelector('.room-error');
+      if (box && el.form) {
+        const building = (el.form.querySelector('[data-kind="building"]') || {}).value || '';
+        const floorRoom = (el.form.querySelector('[data-kind="floorroom"]') || {}).value || '';
+        const msg = roomLiveError(building, floorRoom);
+        box.textContent = msg;
+        box.classList.toggle('hidden', !msg);
+      }
+    }
+  });
+  document.body.addEventListener('focusout', function (e) {
+    const el = e.target;
+    if (!el || !el.dataset || !el.form) return;
+    if (el.dataset.kind !== 'building' && el.dataset.kind !== 'floorroom') return;
+    const box = el.form.querySelector('.room-error');
+    if (!box) return;
+    const building = (el.form.querySelector('[data-kind="building"]') || {}).value || '';
+    const floorRoom = (el.form.querySelector('[data-kind="floorroom"]') || {}).value || '';
+    if (!building || !floorRoom) return;
+    const msg = parseRoom(String(building).replace(/\D/g, '') + '-' + String(floorRoom).replace(/\D/g, '')) ? '' : roomError();
+    box.textContent = msg;
+    box.classList.toggle('hidden', !msg);
   });
   document.body.addEventListener('change', function (e) {
     const input = e.target;
@@ -3629,6 +3767,18 @@ function boot() {
     } catch (e) { /* ignore broken tab data */ }
   });
   window.addEventListener('online', function () { if (db) schedulePush(); });
+  document.addEventListener('visibilitychange', function () {
+    state.session.alarmSig = '';
+    const pending = state.user ? pendingAlarms() : [];
+    const sos = pending.filter(function (a) { return a.kind === 'sos'; })[0];
+    if (document.visibilityState === 'visible') {
+      if (sos) startSiren();
+    } else if (sos) {
+      stopSiren();
+      notifyAdminSos(sos);
+    }
+    renderAlarmOverlay(pending);
+  });
   if (!state.local.setupSeen) state.session.modal = { name: 'setup' };
   render();
   loadWeather();
