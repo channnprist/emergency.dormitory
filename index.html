@@ -1531,10 +1531,13 @@ function pendingAlarms() {
       if (!isAdmin() || a.reporterId === state.user.id || a.acknowledged) return false;
       return (Date.now() - a.createdAt) <= SOS_FRESH;
     }
-    const acked = (a.acks || []).indexOf(state.user.id) >= 0;
-    if (acked || a.kind !== 'broadcast' || isAdmin()) return false;
+    if (a.kind !== 'broadcast') return false;
+    if (a.authorId && a.authorId === state.user.id) return false;
+    if ((a.acks || []).indexOf(state.user.id) >= 0) return false;
     const floors = a.floors || [];
-    return floors.indexOf('all') >= 0 || floors.indexOf(floor) >= 0;
+    if (floors.indexOf('all') >= 0) return true;
+    if (isAdmin()) return false;
+    return floors.indexOf(floor) >= 0;
   }).sort(function (a, b) { return b.createdAt - a.createdAt; });
 }
 
@@ -2486,7 +2489,7 @@ function broadcastForm() {
     Array.from({ length: 12 }, function (_, i) { return checkChoice('floor', String(i + 1), String(i + 1), false, ''); }).join('') + '</div>';
   return '<form data-form="broadcast"><span class="label">' + esc(t('ระดับ', 'Level')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
     choice('level', 'critical', t('วิกฤต', 'Critical'), true, 'danger') + choice('level', 'warning', t('เฝ้าระวัง', 'Warning'), false, 'warn') + '</div>' +
-    '<span class="label">' + esc(t('ชั้นที่ได้รับ', 'Floors')) + '</span><p class="mb-2 text-xs text-slate-400">' + esc(t('เลือกได้หลายชั้น ถ้าเลือกทุกชั้นจะไม่สนชั้นย่อย', 'Pick any floors. All floors overrides the individual boxes.')) + '</p>' + floors +
+    '<span class="label">' + esc(t('ชั้นที่ได้รับ', 'Floors')) + '</span><p class="mb-2 text-xs text-slate-400">' + esc(t('เลือกชั้นแล้วสัญญาณไปหานักศึกษาที่ล็อกอินอยู่ชั้นนั้น เลือกทุกชั้นคือส่งให้ทุกคนที่ล็อกอิน เครื่องของคุณจะไม่ดัง', 'Selected floors reach logged-in students on those floors. All floors reaches everyone who is logged in. Your own device stays quiet.')) + '</p>' + floors +
     '<div class="mt-3">' + biFields('title', null, true) + '</div><div class="mt-3">' + biFields('body', null, false) + '</div>' +
     '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-danger btn-block mt-3" type="submit">' + esc(t('ส่งสัญญาณ', 'Send alarm')) + '</button></form>';
 }
@@ -3143,16 +3146,15 @@ function submitBroadcast(fd) {
       title: title,
       body: body,
       author: state.user.name,
+      authorId: state.user.id,
       createdAt: Date.now(),
       resolved: false,
-      acks: []
+      acks: [state.user.id]
     });
   });
   closeModal();
-  ensureAudio();
-  playUrgentBurst();
-  showBanner('ส่งสัญญาณเตือนแล้ว เสียงดังให้คนที่เปิดหน้านี้อยู่', 'Official alert sent. A loud alarm plays for people on this page.');
-  toast('ส่งสัญญาณแล้ว', 'Alarm sent.');
+  if (!pendingAlarms().some(function (a) { return a.kind === 'sos'; })) stopSiren();
+  toast(floors.indexOf('all') >= 0 ? 'ส่งให้ทุกคนที่ล็อกอินแล้ว เครื่องนี้ไม่ดัง' : 'ส่งให้นักศึกษาชั้นที่เลือกแล้ว เครื่องนี้ไม่ดัง', floors.indexOf('all') >= 0 ? 'Sent to everyone who is logged in. This device stays quiet.' : 'Sent to logged-in students on the selected floors. This device stays quiet.');
 }
 function submitShuttle(fd) {
   const dest = readBi(fd, 'dest');
