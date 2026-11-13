@@ -1531,13 +1531,15 @@ function pendingAlarms() {
       if (!isAdmin() || a.reporterId === state.user.id || a.acknowledged) return false;
       return (Date.now() - a.createdAt) <= SOS_FRESH;
     }
-    if (a.kind !== 'broadcast') return false;
-    if (a.authorId && a.authorId === state.user.id) return false;
+    if (a.kind !== 'broadcast' || !isStudent()) return false;
     if ((a.acks || []).indexOf(state.user.id) >= 0) return false;
     const floors = a.floors || [];
     if (floors.indexOf('all') >= 0) return true;
-    if (isAdmin()) return false;
-    return floors.indexOf(floor) >= 0;
+    if (floors.indexOf(floor) < 0) return false;
+    const floorNum = Number(floor);
+    const building = Number(state.user.building);
+    if (floorNum >= 6 && floorNum <= 10) return building >= 9 && building <= 12;
+    return floorNum >= 1 && floorNum <= 5 && building >= 1 && building <= 12;
   }).sort(function (a, b) { return b.createdAt - a.createdAt; });
 }
 
@@ -1548,10 +1550,8 @@ function scanAlarms() {
   if (sos) armSosExpiry(sos);
   if (newest && !state.session.heard[newest.id]) {
     state.session.heard[newest.id] = true;
-    if (newest.kind === 'sos') {
-      if (document.visibilityState === 'visible') state.session.needSoundTap = !startSiren();
-      else notifyAdminSos(newest);
-    } else state.session.needSoundTap = !playUrgentBurst();
+    if (document.visibilityState === 'visible') state.session.needSoundTap = !startSiren();
+    else if (newest.kind === 'sos') notifyAdminSos(newest);
     if (state.session.modal && newest.kind !== 'sos') {
       state.session.modal = null;
       state.session.skipModalCapture = true;
@@ -2266,14 +2266,14 @@ function renderAlarmOverlay(pending) {
   const newest = pending[0];
   const sos = pending.filter(function (a) { return freshSos(a); })[0];
   const visible = document.visibilityState !== 'hidden';
-  if (sos && visible) {
+  if (newest && visible) {
     if (!startSiren()) state.session.needSoundTap = true;
     const banner = document.getElementById('bannerRoot');
     if (banner && banner.querySelector('[data-sos-banner]')) banner.innerHTML = '';
-  } else if (sos && !visible) {
+  } else if (!visible) {
     stopSiren();
-    notifyAdminSos(sos);
-  } else if (!newest && !burstTimer) stopSiren();
+    if (sos) notifyAdminSos(sos);
+  } else if (!newest) stopSiren();
   const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length + '|' + (visible ? 'v' : 'h') + '|' + (isAdmin() ? 'a' : 's');
   if (sig === state.session.alarmSig) return;
   state.session.alarmSig = sig;
@@ -2486,10 +2486,10 @@ function sosForm() {
 }
 function broadcastForm() {
   const floors = '<div class="grid grid-cols-4 gap-2">' + checkChoice('floor', 'all', t('ทุกชั้น', 'All'), true, 'danger') +
-    Array.from({ length: 12 }, function (_, i) { return checkChoice('floor', String(i + 1), String(i + 1), false, ''); }).join('') + '</div>';
+    Array.from({ length: 10 }, function (_, i) { return checkChoice('floor', String(i + 1), String(i + 1), false, ''); }).join('') + '</div>';
   return '<form data-form="broadcast"><span class="label">' + esc(t('ระดับ', 'Level')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
     choice('level', 'critical', t('วิกฤต', 'Critical'), true, 'danger') + choice('level', 'warning', t('เฝ้าระวัง', 'Warning'), false, 'warn') + '</div>' +
-    '<span class="label">' + esc(t('ชั้นที่ได้รับ', 'Floors')) + '</span><p class="mb-2 text-xs text-slate-400">' + esc(t('เลือกชั้นแล้วสัญญาณไปหานักศึกษาที่ล็อกอินอยู่ชั้นนั้น เลือกทุกชั้นคือส่งให้ทุกคนที่ล็อกอิน เครื่องของคุณจะไม่ดัง', 'Selected floors reach logged-in students on those floors. All floors reaches everyone who is logged in. Your own device stays quiet.')) + '</p>' + floors +
+    '<span class="label">' + esc(t('ชั้นที่ได้รับ', 'Floors')) + '</span><p class="mb-2 text-xs text-slate-400">' + esc(t('ตึก 1–8 มี 5 ชั้น ตึก 9–12 มี 10 ชั้น เลือกชั้นแล้วแจ้งนักศึกษาที่เปิดเว็บอยู่ชั้นนั้นทันที ชั้น 6–10 มีเฉพาะตึก 9–12 ทุกชั้นคือนักศึกษาทุกคนที่ล็อกอิน ผู้ดูแลไม่ได้รับสัญญาณนี้', 'Buildings 1–8 have 5 floors. Buildings 9–12 have 10. A chosen floor alerts students on the site on that floor at once. Floors 6–10 exist only in buildings 9–12. All floors reaches every logged-in student. Staff do not receive this alert.')) + '</p>' + floors +
     '<div class="mt-3">' + biFields('title', null, true) + '</div><div class="mt-3">' + biFields('body', null, false) + '</div>' +
     '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-danger btn-block mt-3" type="submit">' + esc(t('ส่งสัญญาณ', 'Send alarm')) + '</button></form>';
 }
@@ -3135,7 +3135,7 @@ function submitBroadcast(fd) {
   const title = readBi(fd, 'title');
   const body = readBi(fd, 'body');
   if (!biOk(title) || !biOk(body)) { showFormError(t('กรอกหัวข้อและรายละเอียดภาษาต้นฉบับ', 'Enter the original-language title and details.')); return; }
-  let floors = fd.getAll('floor');
+  let floors = fd.getAll('floor').map(String).filter(function (f) { return f === 'all' || (Number(f) >= 1 && Number(f) <= 10); });
   if (!floors.length || floors.indexOf('all') >= 0) floors = ['all'];
   mutate(function (data) {
     data.alarms.unshift({
@@ -3154,7 +3154,7 @@ function submitBroadcast(fd) {
   });
   closeModal();
   if (!pendingAlarms().some(function (a) { return a.kind === 'sos'; })) stopSiren();
-  toast(floors.indexOf('all') >= 0 ? 'ส่งให้ทุกคนที่ล็อกอินแล้ว เครื่องนี้ไม่ดัง' : 'ส่งให้นักศึกษาชั้นที่เลือกแล้ว เครื่องนี้ไม่ดัง', floors.indexOf('all') >= 0 ? 'Sent to everyone who is logged in. This device stays quiet.' : 'Sent to logged-in students on the selected floors. This device stays quiet.');
+  toast(floors.indexOf('all') >= 0 ? 'ส่งให้นักศึกษาทุกคนที่เปิดเว็บอยู่แล้ว เครื่องผู้ดูแลไม่ดัง' : 'ส่งให้นักศึกษาชั้นที่เลือกที่เปิดเว็บอยู่แล้ว เครื่องผู้ดูแลไม่ดัง', floors.indexOf('all') >= 0 ? 'Sent at once to every student who is on the site. Staff devices stay quiet.' : 'Sent at once to students on the site on the selected floors. Staff devices stay quiet.');
 }
 function submitShuttle(fd) {
   const dest = readBi(fd, 'dest');
@@ -3774,10 +3774,10 @@ function boot() {
     const pending = state.user ? pendingAlarms() : [];
     const sos = pending.filter(function (a) { return a.kind === 'sos'; })[0];
     if (document.visibilityState === 'visible') {
-      if (sos) startSiren();
-    } else if (sos) {
+      if (pending.length) startSiren();
+    } else {
       stopSiren();
-      notifyAdminSos(sos);
+      if (sos) notifyAdminSos(sos);
     }
     renderAlarmOverlay(pending);
   });
