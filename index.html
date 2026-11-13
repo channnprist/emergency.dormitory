@@ -76,6 +76,7 @@
     color: white; font-weight: 700;
     box-shadow: 0 10px 24px rgba(15, 23, 42, .25);
   }
+  #fab { display: none !important; }
   #fab.sos { background: #dc2626; }
   #fab.cast { background: #d97706; }
   #fab:active { transform: scale(.97); }
@@ -159,6 +160,20 @@
     content: ""; position: absolute; top: -6px; width: 28px; height: 3px;
     border-radius: 99px; background: linear-gradient(135deg, #ff9f1c, #ff5400);
   }
+  .tab-btn svg, .side-btn svg { width: 22px; height: 22px; }
+  .pills { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 2px; }
+  .pills .btn { flex: 0 0 auto; }
+  .room-split { display: flex; align-items: center; gap: 8px; }
+  .room-split .input { text-align: center; font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: .04em; }
+  .room-dash { font-size: 24px; font-weight: 700; color: #c2410c; line-height: 1; }
+  .live-banner {
+    position: fixed; z-index: 70; left: 12px; right: 12px; top: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: linear-gradient(135deg, #ff9f1c, #ff5400); color: #fff;
+    border-radius: 16px; padding: 12px 14px; box-shadow: 0 12px 28px rgba(255, 84, 0, .35);
+    font-weight: 700;
+  }
+  .live-banner button { border: 0; background: rgba(255,255,255,.2); color: #fff; width: 32px; height: 32px; border-radius: 99px; font-size: 18px; cursor: pointer; }
   .side-btn {
     display: flex; align-items: center; gap: 10px; width: 100%;
     text-align: left; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px;
@@ -260,6 +275,11 @@
     50% { box-shadow: inset 0 0 0 6px rgba(255,255,255,.18); }
   }
   .alarm-screen.critical .alarm-card { animation: siren 1s ease-in-out infinite; }
+  .alarm-screen.sos { animation: alarm-flash .65s steps(2, end) infinite; }
+  @keyframes alarm-flash {
+    0%, 100% { background: #7f1d1d; }
+    50% { background: #ef4444; }
+  }
   .cctv {
     position: relative; aspect-ratio: 16/9; border-radius: 16px; overflow: hidden;
     background: #0f172a; color: #fff;
@@ -402,6 +422,7 @@
   <nav id="tabbar" aria-label="Primary"></nav>
   <button id="fab" class="hidden" type="button"></button>
   <div id="modalRoot" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div>
+  <div id="bannerRoot"></div>
   <div id="alarmRoot"></div>
   <div id="toast" role="status"></div>
   <div id="liveStatus" class="sr-only" aria-live="assertive"></div>
@@ -690,10 +711,27 @@ function applyStay(parsed, phone) {
   }
   if (typeof phone === 'string') state.user.phone = phone;
 }
+function roomParts(value) {
+  const raw = String(value || '').trim();
+  const parsed = parseRoom(raw);
+  if (parsed) return { building: parsed.building, floorRoom: parsed.canonical.slice(parsed.building.length + 1) };
+  const cut = raw.indexOf('-');
+  if (cut < 0) return { building: raw.replace(/\D/g, '').slice(0, 2), floorRoom: '' };
+  return { building: raw.slice(0, cut).replace(/\D/g, '').slice(0, 2), floorRoom: raw.slice(cut + 1).replace(/\D/g, '').slice(0, 4) };
+}
+function roomFromForm(fd) {
+  const building = String(fd.get('buildingNo') || '').replace(/\D/g, '');
+  const floorRoom = String(fd.get('floorRoom') || '').replace(/\D/g, '');
+  if (!building && !floorRoom && fd.get('room')) return parseRoom(fd.get('room'));
+  return parseRoom(building + '-' + floorRoom);
+}
 function roomField(value) {
+  const parts = roomParts(value);
   return '<label class="label">' + esc(t('เลขห้อง', 'Room number')) + '</label>' +
-    '<input class="input" name="room" data-kind="room" inputmode="numeric" autocomplete="off" placeholder="1-109" required value="' + esc(value || '') + '">' +
-    '<p class="field-hint">' + esc(t('เช่น 1-504 = อาคาร 1 ชั้น 5 ห้อง 04 · 9-716 = อาคาร 9 ชั้น 7 ห้อง 16 · 12-1020 = อาคาร 12 ชั้น 10 ห้อง 20', 'e.g. 1-504 = building 1, floor 5, room 04 · 9-716 = building 9, floor 7, room 16 · 12-1020 = building 12, floor 10, room 20')) + '</p>';
+    '<div class="room-split"><input class="input" name="buildingNo" data-kind="building" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-label="' + esc(t('อาคาร', 'Building')) + '" placeholder="9" required value="' + esc(parts.building) + '">' +
+    '<span class="room-dash" aria-hidden="true">-</span>' +
+    '<input class="input" name="floorRoom" data-kind="floorroom" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="' + esc(t('ชั้นและห้อง', 'Floor and room')) + '" placeholder="716" required value="' + esc(parts.floorRoom) + '"></div>' +
+    '<p class="field-hint">' + esc(t('ช่องซ้ายคืออาคาร 1–12 ช่องขวาคือชั้นกับห้อง เช่น 9 และ 716 = 9-716 · อาคาร 1–8 ใช้ชั้น 1–5 ห้อง 01–10 · อาคาร 9–12 ใช้ชั้น 1–10 ห้อง 01–20', 'Left box is the building (1–12). Right box is floor plus room, so 9 and 716 become 9-716. Buildings 1–8: floors 1–5, rooms 01–10. Buildings 9–12: floors 1–10, rooms 01–20.')) + '</p>';
 }
 function phoneField(value, required) {
   return '<label class="label">' + esc(required ? t('เบอร์โทร', 'Phone') : t('เบอร์โทร (ไม่บังคับ)', 'Phone (optional)')) + '</label>' +
@@ -1176,7 +1214,8 @@ function loadData() {
 function saveSession() {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({
     user: state.user,
-    dismissedArrival: state.session.dismissedArrival
+    dismissedArrival: state.session.dismissedArrival,
+    verifiedPhones: state.session.verifiedPhones || {}
   }));
 }
 function loadSession() {
@@ -1185,6 +1224,7 @@ function loadSession() {
     if (!raw) return;
     state.user = raw.user || null;
     state.session.dismissedArrival = raw.dismissedArrival || {};
+    state.session.verifiedPhones = raw.verifiedPhones || {};
   } catch (e) { /* fresh session */ }
 }
 
@@ -1319,6 +1359,9 @@ async function disconnectFirebase() {
   render();
 }
 
+let siren = null;
+let burstTimer = 0;
+let bannerTimer = 0;
 function ensureAudio() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return false;
@@ -1326,55 +1369,100 @@ function ensureAudio() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx.state === 'running';
 }
-function tone(freq, dur, type, when, gain) {
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = type;
-  o.frequency.value = freq;
-  g.gain.setValueAtTime(gain, when);
-  g.gain.exponentialRampToValueAtTime(0.001, when + dur);
-  o.connect(g);
-  g.connect(audioCtx.destination);
-  o.start(when);
-  o.stop(when + dur + 0.02);
+function stopSiren() {
+  if (burstTimer) { clearTimeout(burstTimer); burstTimer = 0; }
+  if (!siren) return;
+  clearInterval(siren.timer);
+  try { siren.o1.stop(); } catch (e) { /* already stopped */ }
+  try { siren.o2.stop(); } catch (e) { /* already stopped */ }
+  try { siren.master.disconnect(); } catch (e) { /* already stopped */ }
+  siren = null;
 }
-function beep(kind) {
+function startSiren() {
   if (!state.local.sound) return false;
   try {
     if (!ensureAudio()) return false;
-    const t0 = audioCtx.currentTime + 0.02;
-    if (kind === 'critical') {
-      for (let i = 0; i < 4; i++) {
-        tone(880, 0.16, 'square', t0 + i * 0.28, 0.04);
-        tone(620, 0.16, 'square', t0 + i * 0.28 + 0.1, 0.035);
-      }
-    } else if (kind === 'warn') {
-      tone(740, 0.18, 'sine', t0, 0.05);
-      tone(520, 0.22, 'sine', t0 + 0.2, 0.045);
-    } else {
-      tone(523, 0.1, 'sine', t0, 0.035);
-      tone(784, 0.14, 'sine', t0 + 0.12, 0.03);
-    }
+    if (siren) return true;
+    const master = audioCtx.createGain();
+    master.gain.setValueAtTime(0.62, audioCtx.currentTime);
+    master.connect(audioCtx.destination);
+    const o1 = audioCtx.createOscillator();
+    const o2 = audioCtx.createOscillator();
+    o1.type = 'square';
+    o2.type = 'sawtooth';
+    const g1 = audioCtx.createGain();
+    const g2 = audioCtx.createGain();
+    g1.gain.value = 0.7;
+    g2.gain.value = 0.42;
+    o1.connect(g1);
+    g1.connect(master);
+    o2.connect(g2);
+    g2.connect(master);
+    o1.start();
+    o2.start();
+    const timer = setInterval(function () {
+      if (!siren || !audioCtx) return;
+      const phase = (Date.now() % 780) / 780;
+      const freq = phase < 0.5 ? 640 + phase * 2 * 900 : 1540 - (phase - 0.5) * 2 * 900;
+      const t = audioCtx.currentTime;
+      siren.o1.frequency.setValueAtTime(freq, t);
+      siren.o2.frequency.setValueAtTime(freq * 0.5, t);
+    }, 35);
+    siren = { o1: o1, o2: o2, master: master, timer: timer };
     return true;
   } catch (e) {
     return false;
   }
 }
+function playUrgentBurst() {
+  if (!startSiren()) return false;
+  if (burstTimer) clearTimeout(burstTimer);
+  burstTimer = setTimeout(function () {
+    burstTimer = 0;
+    if (!pendingAlarms().some(function (a) { return a.kind === 'sos'; })) stopSiren();
+  }, 3600);
+  return true;
+}
+function beep(kind) {
+  if (kind === 'critical' || kind === 'warn') return playUrgentBurst();
+  if (!state.local.sound) return false;
+  try {
+    if (!ensureAudio()) return false;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    const t0 = audioCtx.currentTime + 0.02;
+    o.type = 'sine';
+    o.frequency.value = 784;
+    g.gain.setValueAtTime(0.2, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.18);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t0);
+    o.stop(t0 + 0.2);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function showBanner(th, en) {
+  const root = document.getElementById('bannerRoot');
+  if (!root) return;
+  root.innerHTML = '<div class="live-banner" role="status"><b>' + esc(t(th, en)) + '</b><button type="button" data-act="close-banner" aria-label="' + esc(t('ปิด', 'Close')) + '">×</button></div>';
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(function () { root.innerHTML = ''; }, 8000);
+}
 
 function pendingAlarms() {
   if (!state.user) return [];
-  const alarms = state.data.alarms || [];
-  if (isAdmin()) {
-    return alarms.filter(function (a) { return a.kind === 'sos' && !a.resolved; })
-      .sort(function (a, b) { return b.createdAt - a.createdAt; });
-  }
   const floor = String(state.user.floor || '');
-  return alarms.filter(function (a) {
-    if (a.kind !== 'broadcast' || a.resolved) return false;
-    const floors = a.floors || [];
-    const hit = floors.indexOf('all') >= 0 || floors.indexOf(floor) >= 0;
+  return (state.data.alarms || []).filter(function (a) {
+    if (!a || a.resolved) return false;
     const acked = (a.acks || []).indexOf(state.user.id) >= 0;
-    return hit && !acked;
+    if (acked) return false;
+    if (a.kind === 'sos') return true;
+    if (a.kind !== 'broadcast' || isAdmin()) return false;
+    const floors = a.floors || [];
+    return floors.indexOf('all') >= 0 || floors.indexOf(floor) >= 0;
   }).sort(function (a, b) { return b.createdAt - a.createdAt; });
 }
 
@@ -1383,7 +1471,7 @@ function scanAlarms() {
   const newest = pending[0];
   if (newest && !state.session.heard[newest.id]) {
     state.session.heard[newest.id] = true;
-    state.session.needSoundTap = !beep(newest.level === 'critical' ? 'critical' : 'warn');
+    state.session.needSoundTap = newest.kind === 'sos' ? !startSiren() : !playUrgentBurst();
     if (state.session.modal) {
       state.session.modal = null;
       state.session.skipModalCapture = true;
@@ -1611,38 +1699,25 @@ function renderHome() {
   const boatsFree = state.data.boats.filter(function (b) { return boatLiveStatus(b) === 'available'; });
   const seats = boatsFree.reduce(function (sum, b) { return sum + boatRemaining(b); }, 0);
   const openRound = activeRounds().find(function (r) { return r.status === 'open'; });
-  const nextBus = state.data.shuttles.slice().sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
   const utility = state.data.utility;
-  const news = state.data.news.slice().sort(sortNews).slice(0, 2);
-  const leaks = state.data.leaks.filter(function (l) { return !l.resolved; }).slice(0, 2);
-  return head(t('ภาพรวมหอพัก', 'Dorm overview'), t('ลาดกระบัง · สจล. · ข้อมูลใช้ช่วยตัดสินใจระหว่างน้ำท่วม', 'Lat Krabang · KMITL · decisions during flooding')) +
+  return head(t('หน้าหลัก', 'Home'), t('ระดับน้ำ สภาพอากาศ และกล้องหน้าหอ', 'Water level, weather, and the gate camera')) +
     arrivalHtml() +
-    '<section class="card p-4 mb-3" style="border-top:4px solid ' + threatColor() + '"><div class="flex items-start justify-between gap-3"><div><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' +
+    '<section class="card p-4 mb-3" style="border-top:4px solid ' + threatColor() + '"><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' +
     esc(t('ระดับน้ำหน้าหอ', 'Water at the dorm gate')) + '</div><div class="mt-1 flex items-center gap-2">' + badge('waterLv', w.status) +
     '<span class="text-2xl font-semibold tabular-nums">' + esc(w.cm) + ' cm</span></div>' +
     textBlock(w.note, { main: 'mt-2 text-sm' }) +
-    '<p class="mt-2 text-sm font-medium text-slate-700">' + esc(adviceForWater()) + '</p></div></div>' +
-    '<p class="mt-2 text-xs text-slate-400">' + esc(t('อัปเดต', 'Updated')) + ' ' + esc(relTime(w.updatedAt)) + (w.updatedBy ? ' · ' + esc(w.updatedBy) : '') + '</p>' +
-    (isAdmin() ? '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="water-edit">' + icon('pencil') + esc(t('ปรับระดับน้ำ / ลิงก์กล้อง', 'Update level / camera URL')) + '</button>' : '') +
+    '<p class="mt-2 text-sm font-medium text-slate-700">' + esc(adviceForWater()) + '</p>' +
+    '<p class="mt-2 text-xs text-slate-400">' + esc(relTime(w.updatedAt)) + (w.updatedBy ? ' · ' + esc(w.updatedBy) : '') + '</p>' +
+    '<div class="mt-3 flex flex-wrap gap-2">' + badge('water', utility.water) + badge('power', utility.power) + badge('color', utility.color) + '</div>' +
+    (isAdmin() ? '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="water-edit">' + icon('pencil') + esc(t('ปรับระดับน้ำ / กล้อง', 'Update level / camera')) + '</button>' : '') +
     '</section>' +
     '<div class="grid gap-3 md:grid-cols-2 mb-3">' + weatherCardHtml() +
-    '<div class="card p-4"><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' + esc(t('คุณอยู่', 'You are on')) + '</div>' +
-    '<div class="mt-1 text-lg font-semibold">' + esc(buildingLabel(state.user.building)) + ' · ' + esc(t('ชั้น', 'Floor')) + ' ' + esc(state.user.floor || '—') + '</div>' +
-    '<p class="text-sm text-slate-500">' + esc(state.user.room || '') + ' · ' + esc(state.user.name || '') + '</p>' +
-    '<p class="mt-2 text-sm text-slate-600">' + esc(t('สัญญาณเตือนรายชั้นจะดังเฉพาะชั้นของคุณ หรือทุกชั้น', 'Floor alarms reach your floor, or every floor when staff choose All.')) + '</p>' +
-    '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="profile-open">' + esc(t('แก้ห้อง / ชั้น', 'Edit room / floor')) + '</button></div></div>' +
-    '<div class="mb-3">' + renderStream() + '</div>' +
-    '<div class="grid gap-3 md:grid-cols-3 mb-3">' +
-    statCard(t('เรือที่จองได้', 'Boats you can book'), String(boatsFree.length), t(seats + ' ที่นั่งเหลือ', seats + ' seats left'), 'transit', 'boats') +
-    statCard(t('สั่งอาหาร', 'Food order'), openRound ? (openRound.startLabel + '–' + openRound.endLabel) : t('ไม่มีรอบเปิด', 'No open round'), openRound ? tx(openRound.title) : t('เปิดรอบได้จากหน้าอาหาร', 'Open one from the food page'), 'food') +
-    statCard(t('น้ำ / ไฟ', 'Water / power'), statusLabel('water', utility.water).text, statusLabel('power', utility.power).text + ' · ' + statusLabel('color', utility.color).text, 'board', 'status') +
-    '</div>' +
-    '<section class="mb-4"><div class="mb-2 flex items-center justify-between"><h2 class="font-semibold">' + esc(t('รถรับส่งวันนี้', 'Shuttles today')) + '</h2>' +
-    '<button type="button" class="btn btn-ghost btn-sm" data-act="go" data-view="transit" data-transit="shuttle">' + esc(t('ดูทั้งหมด', 'See all')) + '</button></div>' +
-    nextBus.slice(0, 3).map(shuttleRow).join('') + '</section>' +
-    '<section class="mb-4"><h2 class="mb-2 font-semibold">' + esc(t('ข่าวล่าสุด', 'Latest news')) + '</h2>' +
-    (news.length ? news.map(newsCard).join('') : '') + '</section>' +
-    (leaks.length ? '<section><h2 class="mb-2 font-semibold">' + esc(t('จุดน้ำรั่วที่ยังไม่ปิด', 'Open room leaks')) + '</h2>' + leaks.map(leakCard).join('') + '</section>' : '');
+    '<div class="card p-4"><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' + esc(t('ห้องของฉัน', 'My room')) + '</div>' +
+    '<div class="mt-1 text-lg font-semibold">' + esc(state.user.room || '—') + '</div>' +
+    '<p class="text-sm text-slate-500">' + esc(state.user.name || '') + (boatsFree.length ? ' · ' + esc(t('เรือว่าง', 'boats free')) + ' ' + boatsFree.length + ' · ' + esc(seats) + ' ' + esc(t('ที่นั่ง', 'seats')) : '') + '</p>' +
+    (openRound ? '<p class="mt-2 text-sm">' + esc(t('รอบอาหาร', 'Food round')) + ' ' + esc(openRound.startLabel + '–' + openRound.endLabel) + '</p>' : '') +
+    '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="profile-open">' + esc(t('แก้ห้อง', 'Edit room')) + '</button></div></div>' +
+    '<div class="mb-3">' + renderStream() + '</div>';
 }
 
 function statCard(label, value, sub, view, tab) {
@@ -1676,22 +1751,15 @@ function statusButtons(act, id, values, current, kind) {
 
 function renderTransit() {
   const tab = state.session.transitTab || 'shuttle';
-  const switcher = '<div class="mb-4 grid grid-cols-2 gap-2"><button type="button" class="btn ' + (tab === 'shuttle' ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="transitTab" data-val="shuttle">' +
+  const switcher = '<div class="pills" role="tablist"><button type="button" class="btn ' + (tab === 'shuttle' ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="transitTab" data-val="shuttle">' +
     icon('bus') + esc(t('รถรับส่ง', 'Shuttle')) + '</button><button type="button" class="btn ' + (tab === 'boats' ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="transitTab" data-val="boats">' +
     icon('boat') + esc(t('เรือในหอ', 'Dorm boats')) + '</button></div>';
   if (tab === 'boats') return renderBoats(switcher);
   const rows = state.data.shuttles.slice().sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
-  const alerts = rows.filter(function (s) {
-    const p = shuttlePhase(s);
-    return p === 'delayed' || p === 'boarding' || p === 'soon' || p === 'cancelled' || p === 'passed';
-  });
   return head(t('รถรับส่ง', 'Shuttle bus'), isAdmin()
     ? t('ปรับเวลา เส้นทาง และสถานะได้ทันที ผู้ใช้ทุกคนจะเห็นพร้อมกัน', 'Edit times, routes, and live status. Everyone sees the same board.')
     : t('ดูเวลาออกและสถานะล่าสุด เจ้าหน้าที่หอเป็นคนปรับตาราง', 'Live departures. Dorm staff update the board.')) +
     switcher +
-    (alerts.length ? '<div class="card p-3 mb-3 border-amber-200 bg-amber-50"><div class="text-sm font-semibold text-amber-800 mb-2">' + esc(t('สถานะที่ต้องรู้ตอนนี้', 'Status that needs attention')) + '</div>' +
-      alerts.map(function (s) { return '<div class="flex items-center justify-between gap-2 py-1 text-sm"><span class="font-semibold tabular-nums">' + esc(s.time) + ' · ' + esc(tx(s.dest)) + '</span>' + badge('shuttle', shuttlePhase(s)) + '</div>'; }).join('') +
-      '</div>' : '') +
     (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="shuttle-edit">' + icon('plus') + esc(t('เพิ่มเที่ยวรถ', 'Add a shuttle')) + '</button>' : '') +
     rows.map(shuttleRow).join('');
 }
@@ -1732,12 +1800,12 @@ function renderBoats(switcher) {
     }).join('');
 }
 
-function renderFood() {
+function renderFood(switcher) {
   const rounds = activeRounds();
   const mine = isStudent() ? state.user.id : null;
-  return head(t('ฝากซื้ออาหาร', 'Group food order'), t('รอบและเมนูจะหายไปเอง 24 ชั่วโมงหลังเวลาปิดรับ', 'Rounds and menu items disappear 24 hours after the order deadline.')) +
+  return (switcher || '') + head(t('ฝากซื้ออาหาร', 'Group food order'), t('รอบและเมนูจะหายไปเอง 24 ชั่วโมงหลังเวลาปิดรับ แก้ได้เฉพาะออเดอร์ของตัวเองหลังยืนยันเบอร์', 'Rounds expire 24 hours after the deadline. You can edit only your own order after confirming its phone number.')) +
     arrivalHtml() +
-    '<button type="button" class="btn btn-primary mb-3" data-act="round-edit">' + icon('plus') + esc(t('เปิดรอบสั่งใหม่', 'Open an order round')) + '</button>' +
+    (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="round-edit">' + icon('plus') + esc(t('เปิดรอบสั่งใหม่', 'Open an order round')) + '</button>' : '') +
     (rounds.length ? rounds.map(function (r) { return foodCard(r, mine); }).join('') : '<div class="card p-6 text-center text-sm text-slate-500">' + esc(t('ยังไม่มีรอบที่ยังไม่หมดอายุ', 'No active rounds.')) + '</div>');
 }
 function foodCard(r, mine) {
@@ -1755,21 +1823,32 @@ function foodCard(r, mine) {
     '<div class="mt-2 flex flex-wrap gap-2">' + (r.status === 'open' ? '<span class="badge badge-green">' + esc(t('เปิดรับ', 'Open')) + '</span>' : '<span class="badge badge-slate">' + esc(t('ปิดรับ', 'Closed')) + '</span>') +
     (r.arrivedAt ? '<span class="badge badge-sky">' + esc(t('อาหารมาถึงแล้ว', 'Food arrived')) + '</span>' : '') +
     '</div><p class="mt-2 text-xs text-slate-400">' + esc(t('หมดอายุอัตโนมัติ', 'Auto-expires')) + ' ' + esc(formatWhen((r.deadline || r.createdAt) + DAY)) + '</p></div></div>' +
-    '<div class="mt-3 flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="round-toggle" data-id="' + esc(r.id) + '">' +
+    (isAdmin() ? '<div class="mt-3 flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="round-toggle" data-id="' + esc(r.id) + '">' +
     esc(r.status === 'open' ? t('ปิดรอบ', 'Close round') : t('เปิดรอบ', 'Open round')) + '</button>' +
-    '<button type="button" class="btn btn-ghost btn-sm" data-act="round-edit" data-id="' + esc(r.id) + '">' + icon('pencil') + esc(t('แก้ไข', 'Edit')) + '</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="round-edit" data-id="' + esc(r.id) + '">' + icon('pencil') + esc(t('แก้ไขรอบ', 'Edit round')) + '</button>' +
     '<button type="button" class="btn btn-amber btn-sm" data-act="ask-arrive" data-id="' + esc(r.id) + '">' + esc(t('ข้าวมาถึงแล้ว', 'Food arrived')) + '</button>' +
     '<button type="button" class="btn btn-ghost btn-sm" data-act="item-edit" data-round="' + esc(r.id) + '">' + icon('plus') + esc(t('เพิ่มเมนู', 'Add item')) + '</button>' +
-    '<button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="round" data-id="' + esc(r.id) + '">' + icon('trash') + '</button></div>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="round" data-id="' + esc(r.id) + '">' + icon('trash') + '</button></div>' : '') +
     '<ul class="mt-3 divide-y divide-slate-100">' + menu.map(function (m) {
       return '<li class="py-2 flex items-start justify-between gap-3"><div class="min-w-0">' + textBlock(m.name, { main: 'font-medium' }) +
         '<div class="text-sm text-slate-500 tabular-nums">฿' + esc(m.price) + (summary[m.id] ? ' · ' + esc(t('สั่งแล้ว', 'ordered')) + ' ' + esc(summary[m.id].qty) : '') + '</div></div>' +
-        '<span class="flex gap-1"><button type="button" class="icon-btn" data-act="item-edit" data-round="' + esc(r.id) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(t('แก้ไขเมนู', 'Edit item')) + '">' + icon('pencil') + '</button>' +
-        '<button type="button" class="icon-btn" data-act="ask-delete" data-kind="item" data-round="' + esc(r.id) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(t('ลบเมนู', 'Delete item')) + '">' + icon('trash') + '</button></span></li>';
+        (isAdmin() ? '<span class="flex gap-1"><button type="button" class="icon-btn" data-act="item-edit" data-round="' + esc(r.id) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(t('แก้ไขเมนู', 'Edit item')) + '">' + icon('pencil') + '</button>' +
+        '<button type="button" class="icon-btn" data-act="ask-delete" data-kind="item" data-round="' + esc(r.id) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(t('ลบเมนู', 'Delete item')) + '">' + icon('trash') + '</button></span>' : '') + '</li>';
     }).join('') + '</ul>' +
     (r.status === 'open' ? '<button type="button" class="btn btn-primary btn-block mt-3" data-act="order-add" data-id="' + esc(r.id) + '">' + esc(t('สั่งจากรอบนี้', 'Place an order')) + '</button>' :
       '<p class="mt-3 text-sm text-slate-500">' + esc(t('รอบนี้ปิดรับแล้ว', 'This round is closed.')) + '</p>') +
     orderList(orders, menu, mine) + '</article>';
+}
+function phoneVerified(phone) {
+  if (!phone) return false;
+  const bag = state.session.verifiedPhones || {};
+  return !!bag[phone];
+}
+function rememberPhone(phone) {
+  if (!phone) return;
+  state.session.verifiedPhones = state.session.verifiedPhones || {};
+  state.session.verifiedPhones[phone] = true;
+  saveSession();
 }
 function orderList(orders, menu, mine) {
   const rows = mine ? orders.filter(function (o) { return o.userId === mine; }) : orders;
@@ -1777,17 +1856,36 @@ function orderList(orders, menu, mine) {
   const title = mine ? t('ออเดอร์ของฉัน', 'My orders') : t('ออเดอร์ทั้งหมด', 'All orders');
   return '<div class="mt-3"><div class="text-sm font-semibold mb-1">' + esc(title) + '</div>' + rows.slice().sort(function (a, b) { return b.createdAt - a.createdAt; }).map(function (o) {
     const item = menu.find(function (m) { return m.id === o.itemId; });
-    return '<div class="flex items-start justify-between gap-2 py-2 border-t border-slate-100 text-sm"><div><div class="font-medium">' + esc(item ? tx(item.name) : '—') + ' × ' + esc(o.qty) + '</div>' +
-      '<div class="text-slate-500">' + esc(o.room) + ' · ' + esc(o.name) + (o.note ? ' · ' + esc(o.note) : '') + '</div></div><div class="text-right">' + badge('order', o.status) +
+    const own = state.user && o.userId === state.user.id;
+    const editing = own && state.session.editingOrder === o.id && phoneVerified(o.phone);
+    if (editing) {
+      return '<form data-form="order-edit" class="py-2 border-t border-slate-100"><input type="hidden" name="id" value="' + esc(o.id) + '"><span class="label">' + esc(t('เมนู', 'Item')) + '</span><div class="grid gap-2">' +
+        menu.map(function (m, i) { return choice('itemId', m.id, tx(m.name) + ' · ฿' + m.price, m.id === o.itemId || (!o.itemId && i === 0), ''); }).join('') +
+        '</div><label class="label mt-2">' + esc(t('จำนวน', 'Quantity')) + '</label><select class="input" name="qty">' + [1, 2, 3, 4, 5].map(function (n) {
+          return '<option' + (Number(o.qty) === n ? ' selected' : '') + '>' + n + '</option>';
+        }).join('') + '</select><label class="label mt-2">' + esc(t('หมายเหตุ', 'Note')) + '</label><input class="input" name="note" maxlength="140" value="' + esc(o.note || '') + '">' +
+        '<p id="formError" class="form-error hidden mt-2"></p><div class="mt-2 flex gap-2"><button class="btn btn-primary btn-sm" type="submit">' + esc(t('บันทึก', 'Save')) + '</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-act="order-edit-cancel">' + esc(t('ยกเลิก', 'Cancel')) + '</button>' +
+        '<button type="button" class="btn btn-danger btn-sm" data-act="order-delete" data-id="' + esc(o.id) + '">' + esc(t('ลบ', 'Delete')) + '</button></div></form>';
+    }
+    return '<div class="flex items-start justify-between gap-2 py-2 border-t border-slate-100 text-sm"><div class="min-w-0"><div class="font-medium">' + esc(item ? tx(item.name) : '—') + ' × ' + esc(o.qty) + '</div>' +
+      '<div class="text-slate-500">' + esc(o.room) + ' · ' + esc(o.name) + (o.note ? ' · ' + esc(o.note) : '') + '</div>' +
+      (own ? '<button type="button" class="btn btn-ghost btn-sm mt-2" data-act="order-edit" data-id="' + esc(o.id) + '">' + esc(t('แก้ไข', 'Edit')) + '</button>' : '') +
+      '</div><div class="text-right">' + badge('order', o.status) +
       (isAdmin() ? '<div class="mt-1">' + statusButtons('order-status', o.id, ['pending', 'preparing', 'arrived'], o.status, 'order') + '</div>' : '') + '</div></div>';
   }).join('') + '</div>';
 }
 
+function sensorRow(s) {
+  const on = state.session.selectedSensor === s.id;
+  return '<button type="button" class="card p-3 text-left' + (on ? ' ring-2 ring-orange-400' : '') + '" data-act="sensor-select" data-id="' + esc(s.id) + '"><div class="flex items-center justify-between gap-2"><div class="min-w-0"><div class="text-xs font-semibold" style="color:#c2410c">' + esc(s.id) + '</div><div class="font-medium truncate">' + esc(tx(s.road)) + '</div><div class="text-xs text-slate-500">' + Number(s.leakageMa).toFixed(1) + ' mA · ' + Math.round(Number(s.waterCm) || 0) + ' cm</div></div>' +
+    (s.status === 'leak' ? '<span class="badge badge-red">' + esc(t('ไฟรั่ว', 'Leak')) + '</span>' : '<span class="badge" style="background:#dcfce7;color:#166534">' + esc(t('ปกติ', 'Safe')) + '</span>') +
+    '</div></button>';
+}
 function renderCampus() {
   const sensors = state.data.sensors || [];
   const leaks = sensors.filter(function (s) { return s.status === 'leak'; });
   const safe = sensors.length - leaks.length;
-  const selected = findById(sensors, state.session.selectedSensor);
   const pins = state.data.pins || [];
   const selectedPin = pins.find(function (p) { return p.id === state.session.selectedPin; });
   const rows = sensors.slice().sort(function (a, b) {
@@ -1804,21 +1902,9 @@ function renderCampus() {
     '<div class="card p-3"><div class="text-xs text-slate-500">' + esc(t('โซนปกติ', 'Safe zones')) + '</div><div class="text-2xl font-semibold" style="color:#16A34A">' + safe + '</div></div>' +
     '<div class="card p-3"><div class="text-xs text-slate-500">' + esc(t('พบไฟรั่ว', 'Leak alerts')) + '</div><div class="text-2xl font-semibold" style="color:#DC2626">' + leaks.length + '</div></div></div>' +
     (isAdmin() ? '<button type="button" class="btn btn-primary btn-block mb-3" data-act="sensor-scan">' + esc(t('สแกนเซนเซอร์สด', 'Simulate live sensor scan')) + '</button>' : '') +
-    (selected ? '<article class="card p-4 mb-3"><div class="text-xs font-semibold" style="color:#c2410c">' + esc(selected.id) + '</div>' +
-      textBlock(selected.road, { main: 'text-lg font-semibold mt-1' }) +
-      '<p class="text-xs text-slate-500 mt-1">' + esc(t('จุดตรวจทุก 300 เมตร', '300m grid checkpoint')) + '</p>' +
-      '<p class="mt-2 font-semibold" style="color:' + (selected.status === 'leak' ? '#DC2626' : '#16A34A') + '">' + esc(selected.status === 'leak' ? t('พบจุดไฟรั่ว', 'Electrical leak detected') : t('ปกติ / ปลอดภัย', 'Safe')) + '</p>' +
-      '<p class="text-sm mt-1">' + esc(t('กระแสไฟรั่ว', 'Leakage current')) + ' <b>' + Number(selected.leakageMa).toFixed(1) + ' mA</b> · ' + esc(selected.status === 'leak' ? t('อันตราย', 'Danger') : t('ปลอดภัย', 'Safe')) + '</p>' +
-      '<p class="text-sm">' + esc(t('ระดับน้ำ', 'Water level')) + ' <b>' + Math.round(Number(selected.waterCm) || 0) + ' cm</b></p>' +
-      '<div class="text-xs text-slate-400 mt-1">' + esc(t('อัปเดตล่าสุด', 'Last updated')) + ' ' + esc(relTime(selected.updatedAt)) + '</div>' +
-      (isAdmin() ? '<button type="button" class="btn btn-sm mt-3 ' + (selected.status === 'leak' ? 'btn-ghost' : 'btn-danger') + '" data-act="sensor-toggle" data-id="' + esc(selected.id) + '">' + esc(selected.status === 'leak' ? t('จำลองว่าปกติ', 'Simulate safe') : t('จำลองไฟรั่ว', 'Simulate leak')) + '</button>' : '') +
-      '</article>' : '') +
-    '<div class="grid gap-2 mb-4">' + rows.map(function (s) {
-      return '<button type="button" class="card p-3 text-left" data-act="sensor-select" data-id="' + esc(s.id) + '"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-xs font-semibold" style="color:#c2410c">' + esc(s.id) + '</div>' +
-        textBlock(s.road, { main: 'font-semibold' }) + '<div class="text-xs text-slate-500 mt-1">' + Number(s.leakageMa).toFixed(1) + ' mA · ' + Math.round(Number(s.waterCm) || 0) + ' cm</div></div>' +
-        (s.status === 'leak' ? '<span class="badge badge-red">' + esc(t('ไฟรั่ว', 'Leak')) + '</span>' : '<span class="badge" style="background:#dcfce7;color:#166534">' + esc(t('ปกติ', 'Safe')) + '</span>') +
-        '</div></button>';
-    }).join('') + '</div>' +
+    '<div class="grid gap-2 mb-3">' + (leaks.length ? leaks.map(sensorRow).join('') : '<p class="text-sm text-slate-500">' + esc(t('ยังไม่มีจุดไฟรั่ว', 'No leak alerts.')) + '</p>') + '</div>' +
+    '<details class="card p-3 mb-3"><summary class="font-semibold cursor-pointer">' + esc(t('จุดตรวจทั้งหมด', 'All checkpoints')) + ' (' + sensors.length + ')</summary><div class="grid gap-2 mt-3">' +
+    rows.map(sensorRow).join('') + '</div></details>' +
     (pins.length ? '<h2 class="text-base font-semibold mb-2">' + esc(t('หมุดเตือนที่เจ้าหน้าที่ปักไว้', 'Staff warning pins')) + '</h2>' +
       (selectedPin ? '<article class="card p-4 mb-3">' + badge(selectedPin.severity === 'critical' ? 'leak' : 'news', selectedPin.severity === 'critical' ? 'high' : 'warning') +
         textBlock(selectedPin.title, { main: 'text-lg font-semibold mt-2' }) + textBlock(selectedPin.detail, { main: 'text-sm mt-1' }) +
@@ -1854,31 +1940,49 @@ function leakCard(l) {
     '</article>';
 }
 
-function renderBoard() {
-  const tab = state.session.boardTab || 'report';
-  const switcher = '<div class="mb-4 grid grid-cols-3 gap-2">' +
-    boardTabBtn('status', t('สถานะ', 'Status'), tab) +
-    boardTabBtn('report', t('แจ้งเหตุ', 'Report'), tab) +
-    boardTabBtn('news', t('ข่าว', 'News'), tab) + '</div>';
+function dormPills() {
+  const tab = state.session.dormTab || 'food';
+  return '<div class="pills" role="tablist">' +
+    boardTabBtn('food', t('อาหาร', 'Food'), tab, 'dormTab') +
+    boardTabBtn('room', t('แจ้งห้อง', 'Room'), tab, 'dormTab') +
+    boardTabBtn('news', t('ข่าว', 'News'), tab, 'dormTab') + '</div>';
+}
+function renderDorm() {
+  const tab = state.session.dormTab || 'food';
+  const switcher = dormPills();
   if (tab === 'news') {
     const rows = state.data.news.slice().sort(sortNews);
-    return head(t('ข่าวสารหอพัก', 'Dorm news'), t('สลับ TH/EN ได้ตลอด ข้อความต้นฉบับจะอยู่ใต้คำแปล', 'Switch TH/EN any time. Original text stays under the translation.')) +
-      switcher + (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="news-edit">' + icon('plus') + esc(t('เขียนประกาศ', 'New post')) + '</button>' : '') +
+    return switcher + head(t('ข่าวสารหอพัก', 'Dorm news'), t('สลับ TH/EN ได้ตลอด ข้อความต้นฉบับจะอยู่ใต้คำแปล', 'Switch TH/EN any time. Original text stays under the translation.')) +
+      (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="news-edit">' + icon('plus') + esc(t('เขียนประกาศ', 'New post')) + '</button>' : '') +
       (rows.length ? rows.map(newsCard).join('') : '<div class="card p-6 text-sm text-center text-slate-500">' + esc(t('ยังไม่มีประกาศ', 'No posts yet.')) + '</div>');
   }
-  if (tab === 'status') return renderStatus(switcher);
-  return renderReport(switcher);
+  if (tab === 'room') return isAdmin() ? renderStatus(switcher) : renderReport(switcher);
+  return renderFood(switcher);
 }
-function boardTabBtn(val, label, current) {
-  return '<button type="button" class="btn btn-sm ' + (current === val ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="boardTab" data-val="' + val + '">' + esc(label) + '</button>';
+function renderAlerts() {
+  const alarms = (state.data.alarms || []).filter(function (a) {
+    if (isAdmin()) return true;
+    if (a.kind === 'sos') return a.reporterId === state.user.id;
+    if (a.kind !== 'broadcast') return false;
+    const floors = a.floors || [];
+    return floors.indexOf('all') >= 0 || floors.indexOf(String(state.user.floor || '')) >= 0;
+  }).sort(function (a, b) { return b.createdAt - a.createdAt; });
+  return head(t('สัญญาณและ SOS', 'Alerts and SOS'), t('สัญญาณฉุกเฉินดังให้ทุกคนที่เปิดหน้านี้อยู่ จนกว่าจะรับทราบ', 'An SOS siren sounds for everyone on this page until they acknowledge it.')) +
+    (isAdmin()
+      ? '<button type="button" class="btn btn-danger btn-block mb-3" data-act="broadcast-open">' + esc(t('ส่งสัญญาณถึงชั้น', 'Send a floor alarm')) + '</button>'
+      : '<button type="button" class="btn btn-danger btn-block mb-3" data-act="sos-open">SOS · ' + esc(t('เรียกเจ้าหน้าที่', 'Call staff')) + '</button>') +
+    '<button type="button" class="btn btn-ghost btn-block mb-4" data-act="open-calls">' + icon('phone') + esc(t('โทรฉุกเฉิน', 'Emergency calls')) + '</button>' +
+    (alarms.length ? alarms.map(alarmHistoryCard).join('') : '<div class="card p-6 text-sm text-center text-slate-500">' + esc(t('ยังไม่มีสัญญาณ', 'No alarms yet.')) + '</div>');
+}
+function boardTabBtn(val, label, current, key) {
+  return '<button type="button" class="btn btn-sm ' + (current === val ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="' + (key || 'boardTab') + '" data-val="' + val + '">' + esc(label) + '</button>';
 }
 function renderStatus(switcher) {
   const u = state.data.utility;
   const reports = state.data.utilityReports.slice().sort(function (a, b) { return b.createdAt - a.createdAt; });
   const openLeaks = state.data.leaks.filter(function (l) { return !l.resolved; });
   const closed = state.data.leaks.filter(function (l) { return l.resolved; });
-  const alarms = (state.data.alarms || []).slice().sort(function (a, b) { return b.createdAt - a.createdAt; });
-  return head(t('สถานะน้ำ ไฟ และสัญญาณ', 'Water, power, and alarms'), t('รายงานจากห้องอยู่ด้านล่าง สถานะทางการถูกยืนยันโดยเจ้าหน้าที่', 'Room reports are listed below. The official line is confirmed by staff.')) +
+  return head(t('สถานะน้ำ ไฟ และรายงานห้อง', 'Water, power, and room reports'), t('รายงานน้ำรั่วในห้องมีเฉพาะเจ้าหน้าที่ที่เห็น', 'Room water-leak reports are visible only to staff.')) +
     (switcher || '') +
     '<section class="card p-4 mb-3"><div class="flex flex-wrap gap-2 mb-2">' + badge('water', u.water) + badge('power', u.power) + badge('color', u.color) + '</div>' +
     textBlock(u.note, { main: 'text-sm' }) +
@@ -1896,11 +2000,9 @@ function renderStatus(switcher) {
         (tx(r.note) ? textBlock(r.note, { main: 'mt-1' }) : '') +
         '<div class="text-xs text-slate-400 mt-1">' + esc(r.name || '') + ' · ' + esc(relTime(r.createdAt)) + '</div></article>';
     }).join('') : '<p class="text-sm text-slate-500 mb-3">' + esc(t('ยังไม่มีรายงานจากห้อง', 'No room reports yet.')) + '</p>') +
-    '<h2 class="font-semibold mt-4 mb-2">' + esc(t('จุดน้ำรั่วในห้อง', 'Room leaks')) + '</h2>' +
-    (openLeaks.length ? openLeaks.map(leakCard).join('') : '<p class="text-sm text-slate-500">' + esc(t('ไม่มีจุดรั่วที่เปิดอยู่', 'No open leaks.')) + '</p>') +
-    (closed.length ? '<details class="mt-2"><summary class="text-sm text-slate-500 cursor-pointer">' + esc(t('ปิดงานแล้ว', 'Resolved')) + ' (' + closed.length + ')</summary><div class="mt-2">' + closed.map(leakCard).join('') + '</div></details>' : '') +
-    '<h2 class="font-semibold mt-4 mb-2">' + esc(t('ประวัติสัญญาณ', 'Alarm history')) + '</h2>' +
-    alarms.map(alarmHistoryCard).join('');
+    (isAdmin() ? '<h2 class="font-semibold mt-4 mb-2">' + esc(t('จุดน้ำรั่วในห้อง · เฉพาะเจ้าหน้าที่', 'Room leaks · staff only')) + '</h2>' +
+      (openLeaks.length ? openLeaks.map(leakCard).join('') : '<p class="text-sm text-slate-500">' + esc(t('ไม่มีจุดรั่วที่เปิดอยู่', 'No open leaks.')) + '</p>') +
+      (closed.length ? '<details class="mt-2"><summary class="text-sm text-slate-500 cursor-pointer">' + esc(t('ปิดงานแล้ว', 'Resolved')) + ' (' + closed.length + ')</summary><div class="mt-2">' + closed.map(leakCard).join('') + '</div></details>' : '') : '');
 }
 function quickUtil(key, values) {
   return values.map(function (v) {
@@ -1926,9 +2028,10 @@ function sosLabel(type) {
   return row ? t(row[1], row[2]) : type;
 }
 function renderReport(switcher) {
-  return head(t('แจ้งเหตุจากห้อง', 'Report from your room'), t('ถ้าอันตรายทันที ให้กดปุ่ม SOS แทนแบบฟอร์มนี้', 'If someone is in immediate danger, use the SOS button instead of this form.')) +
+  return head(t('แจ้งจากห้อง', 'Report from your room'), t('รายงานน้ำรั่วส่งถึงเจ้าหน้าที่เท่านั้น คนอื่นในหอไม่เห็น', 'A room water-leak report goes only to staff. Other residents cannot see it.')) +
     (switcher || '') +
-    '<form data-form="leak" class="card p-4 mb-3"><h2 class="font-semibold mb-3">' + esc(t('จุดน้ำรั่วในห้อง', 'Room water leak')) + '</h2>' +
+    (state.session.leakPrivate ? '<div class="card p-3 mb-3 text-sm" style="background:#ecfdf5;border-color:#86efac;color:#166534">' + esc(t('ส่งรายงานน้ำรั่วให้เจ้าหน้าที่แล้ว รายการนี้ไม่แสดงในฟีดของนักศึกษาคนอื่น', 'Your leak report was sent to staff. It is hidden from other students.')) + '</div>' : '') +
+    '<form data-form="leak" class="card p-4 mb-3"><h2 class="font-semibold mb-1">' + esc(t('จุดน้ำรั่วในห้อง', 'Room water leak')) + '</h2><p class="text-sm text-slate-500 mb-3">' + esc(t('เฉพาะเจ้าหน้าที่หอที่เห็นรายงานนี้', 'Only dorm staff can see this report.')) + '</p>' +
     roomField(state.user.room || '') + phoneField(state.user.phone || '', true) +
     '<div class="mt-3"><span class="label">' + esc(t('ความรุนแรง', 'Severity')) + '</span><div class="grid grid-cols-3 gap-2">' +
     choice('severity', 'low', t('เล็กน้อย', 'Low'), true, '') + choice('severity', 'medium', t('ปานกลาง', 'Medium'), false, 'warn') + choice('severity', 'high', t('รุนแรง', 'High'), false, 'danger') +
@@ -2020,51 +2123,32 @@ function renderChrome() {
     '<button type="button" class="icon-btn" data-act="open-calls" aria-label="' + esc(t('โทรฉุกเฉิน', 'Emergency calls')) + '">' + icon('phone') + '</button>' +
     '<button type="button" class="user-chip" data-act="profile-open"><span class="avatar">' + esc(initial) + '</span><span class="user-meta"><b>' + esc(state.user.name) + '</b><small>' + esc(isAdmin() ? t('ผู้ดูแลหอ', 'Dorm staff') : t('นักศึกษา', 'Student')) + (count ? ' · ' + count : '') + '</small></span></button></div>';
 
+  const view = state.session.view || 'home';
   const side = [
-    ['home', 'home', t('หน้าหลัก', 'Home'), 'home', '', ''],
-    ['shuttle', 'bus', t('รถรับส่ง', 'Shuttle'), 'transit', 'shuttle', ''],
-    ['food', 'food', t('อาหาร', 'Food'), 'food', '', ''],
-    ['boats', 'boat', t('เรือ', 'Boats'), 'transit', 'boats', ''],
-    ['map', 'map', t('แผนที่', 'Map'), 'campus', '', ''],
-    ['reports', 'drop', t('แจ้งเหตุ', 'Reports'), 'board', '', 'report'],
-    ['news', 'bell', t('ข่าวสาร', 'News'), 'board', '', 'news']
+    ['home', 'home', t('หน้าหลัก', 'Home')],
+    ['transit', 'bus', t('เดินทาง', 'Transit')],
+    ['campus', 'map', t('แผนที่ไฟรั่ว', 'Leak map')],
+    ['dorm', 'food', t('หอพัก', 'Dorm')],
+    ['alerts', 'bell', t('สัญญาณ', 'Alerts')]
   ];
   document.getElementById('sidebar').innerHTML =
     '<div class="px-2 mb-4"><div class="text-xs font-semibold uppercase tracking-wider text-sky-700">KMITL</div><div class="font-semibold">' + esc(t('ช่วยเหลือเด็กหอ', 'Dorm assistance')) + '</div><div class="mt-2">' + (state.sync.mode === 'live' ? '<span class="badge badge-green">Live</span>' : '<span class="badge badge-slate">Demo</span>') + '</div></div>' +
     side.map(function (item) {
-      const on = sideActive(item[0]);
-      return '<button type="button" class="side-btn' + (on ? ' is-on' : '') + '" data-act="go" data-view="' + item[3] + '"' +
-        (item[4] ? ' data-transit="' + item[4] + '"' : '') + (item[5] ? ' data-board="' + item[5] + '"' : '') + '>' +
+      const on = view === item[0];
+      return '<button type="button" class="side-btn' + (on ? ' is-on' : '') + '" data-act="go" data-view="' + item[0] + '">' +
         icon(item[1]) + '<span>' + esc(item[2]) + '</span></button>';
     }).join('') +
     '<div class="mt-auto px-2 pt-4 text-xs text-slate-400">' + esc(t('ภาษาที่แสดง', 'Showing')) + ': ' + (state.lang === 'th' ? 'ไทย' : 'English') + '</div>';
 
-  const tabs = [
-    ['home', 'home', t('หน้าหลัก', 'Home'), 'home', '', ''],
-    ['travel', 'bus', t('เดินทาง', 'Travel'), 'transit', '', ''],
-    ['food', 'food', t('อาหาร', 'Food'), 'food', '', ''],
-    ['map', 'map', t('แผนที่', 'Map'), 'campus', '', ''],
-    ['report', 'bell', t('แจ้งเหตุ', 'Report'), 'board', '', 'report']
-  ];
-  document.getElementById('tabbar').innerHTML = tabs.map(function (item) {
-    const on = tabActive(item[0]);
-    const badgeHtml = item[0] === 'report' && count ? '<span class="absolute top-0 right-3 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] text-white">' + count + '</span>' : '';
-    return '<button type="button" class="tab-btn' + (on ? ' is-on' : '') + '" data-act="go" data-view="' + item[3] + '"' + (item[5] ? ' data-board="' + item[5] + '"' : '') + '>' +
+  document.getElementById('tabbar').innerHTML = side.map(function (item) {
+    const on = view === item[0];
+    const badgeHtml = item[0] === 'alerts' && count ? '<span class="absolute top-0 right-3 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] text-white">' + count + '</span>' : '';
+    return '<button type="button" class="tab-btn' + (on ? ' is-on' : '') + '" data-act="go" data-view="' + item[0] + '">' +
       icon(item[1]) + '<span>' + esc(item[2]) + '</span>' + badgeHtml + '</button>';
   }).join('');
 
   const fab = document.getElementById('fab');
-  if (isAdmin()) {
-    fab.className = 'cast';
-    fab.innerHTML = icon('megaphone');
-    fab.setAttribute('data-act', 'broadcast-open');
-    fab.setAttribute('aria-label', t('ประกาศเตือนรายชั้น', 'Broadcast a floor alarm'));
-  } else {
-    fab.className = 'sos';
-    fab.textContent = 'SOS';
-    fab.setAttribute('data-act', 'sos-open');
-    fab.setAttribute('aria-label', t('แจ้งเหตุฉุกเฉินถึงเจ้าหน้าที่', 'Alert dorm staff'));
-  }
+  if (fab) { fab.className = 'hidden'; fab.innerHTML = ''; fab.removeAttribute('data-act'); }
   const theme = document.querySelector('meta[name="theme-color"]');
   if (theme) theme.setAttribute('content', threatColor());
   document.body.classList.toggle('role-admin', isAdmin());
@@ -2073,38 +2157,22 @@ function applyLangChrome() {
   document.documentElement.lang = state.lang === 'en' ? 'en' : 'th';
   document.title = state.lang === 'en' ? 'KMITL Dorm · Flood Alert' : 'หอสจล. · แจ้งเตือนน้ำท่วม';
 }
-function sideActive(key) {
-  const v = state.session.view;
-  const tr = state.session.transitTab;
-  const bd = state.session.boardTab;
-  if (key === 'home') return v === 'home';
-  if (key === 'shuttle') return v === 'transit' && tr !== 'boats';
-  if (key === 'boats') return v === 'transit' && tr === 'boats';
-  if (key === 'food') return v === 'food';
-  if (key === 'map') return v === 'campus';
-  if (key === 'reports') return v === 'board' && bd !== 'news';
-  if (key === 'news') return v === 'board' && bd === 'news';
-  return false;
-}
-function tabActive(key) {
-  const v = state.session.view;
-  if (key === 'home') return v === 'home';
-  if (key === 'travel') return v === 'transit';
-  if (key === 'food') return v === 'food';
-  if (key === 'map') return v === 'campus';
-  if (key === 'report') return v === 'board';
-  return false;
-}
-
 function renderView() {
   const sc = document.getElementById('viewScroll');
   const top = state.session.keepScroll ? sc.scrollTop : 0;
+  let view = state.session.view || 'home';
+  if (view === 'food') { view = 'dorm'; state.session.view = 'dorm'; state.session.dormTab = state.session.dormTab || 'food'; }
+  if (view === 'board') {
+    state.session.view = 'dorm';
+    state.session.dormTab = state.session.boardTab === 'news' ? 'news' : 'room';
+    view = 'dorm';
+  }
   let html = '';
-  if (state.session.view === 'home') html = renderHome();
-  else if (state.session.view === 'transit') html = renderTransit();
-  else if (state.session.view === 'food') html = renderFood();
-  else if (state.session.view === 'campus') html = renderCampus();
-  else html = renderBoard();
+  if (view === 'home') html = renderHome();
+  else if (view === 'transit') html = renderTransit();
+  else if (view === 'campus') html = renderCampus();
+  else if (view === 'alerts') html = renderAlerts();
+  else html = renderDorm();
   sc.innerHTML = html;
   if (state.session.keepScroll) sc.scrollTop = top;
   state.session.keepScroll = false;
@@ -2113,21 +2181,26 @@ function renderView() {
 
 function renderAlarmOverlay(pending) {
   const newest = pending[0];
-  const sig = (newest ? newest.id + newest.level : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length;
+  const sosLive = pending.some(function (a) { return a.kind === 'sos'; });
+  if (sosLive) {
+    if (!startSiren()) state.session.needSoundTap = true;
+  } else if (!newest && !burstTimer) stopSiren();
+  const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length + '|' + (isAdmin() ? 'a' : 's');
   if (sig === state.session.alarmSig) return;
   state.session.alarmSig = sig;
   const root = document.getElementById('alarmRoot');
   if (!newest) { root.innerHTML = ''; return; }
-  const critical = newest.level === 'critical';
+  const critical = newest.level === 'critical' || newest.kind === 'sos';
   let body = '';
   if (newest.kind === 'sos') {
-    body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('นักศึกษาเรียกเจ้าหน้าที่', 'Student alert for staff')) + '</div>' +
+    body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('สัญญาณฉุกเฉิน · ดังให้ทุกคนที่เปิดหน้านี้อยู่', 'Emergency · sounding for everyone on this page')) + '</div>' +
       '<h2 class="mt-2 text-3xl font-semibold">' + esc(sosLabel(newest.sosType)) + '</h2>' +
       '<div class="mt-2 text-2xl font-semibold">' + esc(newest.room || '') + ' · ' + esc(buildingLabel(newest.building)) + '</div>' +
       textBlock(newest.note, { main: 'mt-3 text-lg', wrap: '' }) +
       '<div class="mt-2 text-sm opacity-80">' + esc(newest.reporterName || '') + ' · ' + esc(t('ชั้น', 'Floor')) + ' ' + esc(newest.floor || '—') + ' · ' + esc(relTime(newest.createdAt)) + '</div>' +
-      (newest.phone ? '<a class="btn btn-ghost mt-3" href="' + telHref(newest.phone) + '">' + icon('phone') + esc(newest.phone) + '</a>' : '') +
-      '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="resolve-alarm" data-id="' + esc(newest.id) + '">' + esc(t('รับเรื่องและปิดสัญญาณ', 'Acknowledge and clear')) + '</button>';
+      (isAdmin() && newest.phone ? '<a class="btn btn-ghost mt-3" href="' + telHref(newest.phone) + '">' + icon('phone') + esc(newest.phone) + '</a>' : '') +
+      '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="ack-alarm" data-id="' + esc(newest.id) + '">' + esc(t('รับทราบและปิดเสียงบนเครื่องนี้', 'Acknowledge and silence this device')) + '</button>' +
+      (isAdmin() ? '<button type="button" class="btn btn-block mt-2" style="background:#fff;color:#7f1d1d" data-act="resolve-alarm" data-id="' + esc(newest.id) + '">' + esc(t('ปิดสัญญาณให้ทุกคน', 'Clear for everyone')) + '</button>' : '');
   } else {
     const floors = (newest.floors || []).indexOf('all') >= 0 ? t('ทุกชั้น', 'All floors') : (t('ชั้น', 'Floor') + ' ' + (newest.floors || []).join(', '));
     body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('สัญญาณจากผู้ดูแลหอ', 'Alarm from dorm staff')) + ' · ' + esc(floors) + '</div>' +
@@ -2136,7 +2209,7 @@ function renderAlarmOverlay(pending) {
       '<div class="mt-2 text-sm opacity-80">' + esc(newest.author || '') + ' · ' + esc(relTime(newest.createdAt)) + '</div>' +
       '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="ack-alarm" data-id="' + esc(newest.id) + '">' + esc(t('รับทราบแล้ว', 'I understand')) + '</button>';
   }
-  root.innerHTML = '<div class="alarm-screen ' + (critical ? 'critical' : 'warn') + '" role="alertdialog" aria-modal="true"><div class="alarm-card">' +
+  root.innerHTML = '<div class="alarm-screen ' + (newest.kind === 'sos' ? 'sos ' : '') + (critical ? 'critical' : 'warn') + '" role="alertdialog" aria-modal="true"><div class="alarm-card">' +
     (pending.length > 1 ? '<div class="mb-2 text-sm">' + esc(t('อีก ' + (pending.length - 1) + ' รายการ', (pending.length - 1) + ' more after this')) + '</div>' : '') +
     body +
     (state.session.needSoundTap ? '<button type="button" class="btn btn-ghost btn-block mt-2" data-act="sound-on" style="color:#fff;border-color:rgba(255,255,255,.4)">' + esc(t('แตะเพื่อเปิดเสียงไซเรน', 'Tap to play the siren')) + '</button>' : '') +
@@ -2170,6 +2243,7 @@ function modalTitle(modal) {
     round: t('รอบสั่งอาหาร', 'Food round'),
     item: t('เมนู', 'Menu item'),
     order: t('สั่งอาหาร', 'Place order'),
+    'order-phone': t('ยืนยันเบอร์ออเดอร์', 'Confirm order phone'),
     boat: t('เรือ', 'Boat'),
     booking: t('จองเรือ', 'Book a boat'),
     pin: t('จุดไฟรั่ว', 'Electrical leak pin'),
@@ -2247,6 +2321,11 @@ function modalBody(modal) {
   if (modal.name === 'round') return roundForm(modal.id);
   if (modal.name === 'item') return itemForm(modal.round, modal.id);
   if (modal.name === 'order') return orderForm(modal.id);
+  if (modal.name === 'order-phone') {
+    return '<form data-form="order-phone"><input type="hidden" name="id" value="' + esc(modal.id || '') + '"><p class="text-sm text-slate-600 mb-3">' +
+      esc(t('กรอกเบอร์โทร 10 หลักที่ใช้สั่งออเดอร์นี้ ถ้าตรงระบบจะเปิดให้แก้ไขทันที', 'Enter the 10-digit phone used for this order. A match unlocks editing immediately.')) + '</p>' +
+      phoneField('', true) + '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('ยืนยันและแก้ไข', 'Confirm and edit')) + '</button></form>';
+  }
   if (modal.name === 'boat') return boatForm(modal.id);
   if (modal.name === 'booking') return bookForm(modal.id);
   if (modal.name === 'pin') return pinForm(modal.id);
@@ -2300,6 +2379,7 @@ function renderSetup() {
 
 function profileForm() {
   const u = state.user;
+  if (!u) return '';
   return '<form data-form="profile"><label class="label">' + esc(t('ชื่อ', 'Name')) + '</label><input class="input mb-3" name="name" required value="' + esc(u.name || '') + '">' +
     (isStudent() ? roomField(u.room || '') + phoneField(u.phone || '', false) : '') +
     '<button class="btn btn-primary btn-block" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>' +
@@ -2308,7 +2388,7 @@ function profileForm() {
 }
 function sosForm() {
   const u = state.user;
-  return '<form data-form="sos"><p class="text-sm text-slate-600 mb-3">' + esc(t('สัญญาณนี้ไปที่แดชบอร์ดเจ้าหน้าที่ทันที พร้อมเสียงและแบนเนอร์', 'This reaches the staff dashboard immediately, with sound and a full-screen banner.')) + '</p>' +
+  return '<form data-form="sos"><p class="text-sm text-slate-600 mb-3">' + esc(t('สัญญาณดังต่อเนื่องให้เจ้าหน้าที่และทุกคนที่เปิดหน้านี้อยู่ จนกว่าจะกดรับทราบ', 'A continuous siren plays for staff and everyone who has this page open, until they acknowledge it.')) + '</p>' +
     '<span class="label">' + esc(t('ประเภท', 'Type')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
     SOS_TYPES.map(function (s, i) { return choice('sosType', s[0], t(s[1], s[2]), i === 0, s[0] === 'medical' || s[0] === 'fire' || s[0] === 'snake' ? 'danger' : ''); }).join('') +
     '</div>' + roomField(u.room || '') + phoneField(u.phone || '', true) +
@@ -2449,6 +2529,9 @@ function captureLoginDraft() {
     if (key === 'role') return;
     next[key] = value;
   });
+  if (next.buildingNo || next.floorRoom) {
+    next.room = String(next.buildingNo || '').replace(/\D/g, '') + '-' + String(next.floorRoom || '').replace(/\D/g, '');
+  }
   state.session.draftLogin = next;
 }
 function captureModalDraft() {
@@ -2466,6 +2549,13 @@ function captureModalDraft() {
 }
 
 function doDelete(kind, id, roundId) {
+  if (kind === 'order') {
+    const existing = findById(state.data.foodOrders, id);
+    if (!existing || !state.user || existing.userId !== state.user.id) {
+      toast('แก้ได้เฉพาะออเดอร์ของตัวเอง', 'You can change only your own order.');
+      return;
+    }
+  }
   mutate(function (data) {
     if (kind === 'shuttle') data.shuttles = data.shuttles.filter(function (x) { return x.id !== id; });
     if (kind === 'boat') data.boats = data.boats.filter(function (x) { return x.id !== id; });
@@ -2483,6 +2573,7 @@ function doDelete(kind, id, roundId) {
       if (round) round.menu = (round.menu || []).filter(function (m) { return m.id !== id; });
       data.foodOrders = data.foodOrders.filter(function (o) { return !(o.roundId === roundId && o.itemId === id); });
     }
+    if (kind === 'order') data.foodOrders = data.foodOrders.filter(function (o) { return o.id !== id; });
   });
 }
 
@@ -2501,6 +2592,7 @@ function onClick(e) {
     state.session.view = btn.dataset.view || 'home';
     if (btn.dataset.transit) state.session.transitTab = btn.dataset.transit;
     if (btn.dataset.board) state.session.boardTab = btn.dataset.board;
+    if (btn.dataset.dorm) state.session.dormTab = btn.dataset.dorm;
     state.session.keepScroll = false;
     render();
     document.getElementById('viewScroll').scrollTop = 0;
@@ -2523,20 +2615,30 @@ function onClick(e) {
   if (act === 'demo-student') { enterDemoStudent(); return; }
   if (act === 'demo-admin') { enterDemoAdmin(); return; }
   if (act === 'logout') { logout(); return; }
-  if (act === 'profile-open') { openModal({ name: 'profile' }); return; }
+  if (act === 'profile-open') { if (state.user) openModal({ name: 'profile' }); return; }
   if (act === 'sos-open') { openModal({ name: 'sos' }); return; }
   if (act === 'broadcast-open') { openModal({ name: 'broadcast' }); return; }
   if (act === 'sound-toggle') {
     state.local.sound = !state.local.sound;
     savePref();
-    if (state.local.sound) beep('info');
+    if (!state.local.sound) stopSiren();
+    else beep('info');
     renderChrome();
     return;
   }
   if (act === 'sound-on') {
-    state.session.needSoundTap = !beep('critical');
+    state.local.sound = true;
+    savePref();
+    const sos = pendingAlarms().some(function (a) { return a.kind === 'sos'; });
+    state.session.needSoundTap = sos ? !startSiren() : !playUrgentBurst();
     state.session.alarmSig = '';
     renderAlarmOverlay(pendingAlarms());
+    renderChrome();
+    return;
+  }
+  if (act === 'close-banner') {
+    const banner = document.getElementById('bannerRoot');
+    if (banner) banner.innerHTML = '';
     return;
   }
   if (act === 'ack-alarm') {
@@ -2601,16 +2703,42 @@ function onClick(e) {
     });
     return;
   }
-  if (act === 'round-edit') { openModal({ name: 'round', id: btn.dataset.id || '' }); return; }
+  if (act === 'round-edit') { if (!isAdmin()) return; openModal({ name: 'round', id: btn.dataset.id || '' }); return; }
   if (act === 'round-toggle') {
+    if (!isAdmin()) return;
     mutate(function (data) {
       const r = findById(data.foodRounds, btn.dataset.id);
       if (r) r.status = r.status === 'open' ? 'closed' : 'open';
     });
     return;
   }
-  if (act === 'item-edit') { openModal({ name: 'item', round: btn.dataset.round, id: btn.dataset.id || '' }); return; }
+  if (act === 'item-edit') { if (!isAdmin()) return; openModal({ name: 'item', round: btn.dataset.round, id: btn.dataset.id || '' }); return; }
   if (act === 'order-add') { openModal({ name: 'order', id: btn.dataset.id }); return; }
+  if (act === 'order-edit') {
+    const order = findById(state.data.foodOrders, btn.dataset.id);
+    if (!order || !state.user || order.userId !== state.user.id) return;
+    if (!order.phone || phoneVerified(order.phone) || state.user.phone === order.phone) {
+      rememberPhone(order.phone);
+      state.session.editingOrder = order.id;
+      render();
+      return;
+    }
+    openModal({ name: 'order-phone', id: order.id });
+    return;
+  }
+  if (act === 'order-edit-cancel') {
+    state.session.editingOrder = null;
+    render();
+    return;
+  }
+  if (act === 'order-delete') {
+    const order = findById(state.data.foodOrders, btn.dataset.id);
+    if (!order || !state.user || order.userId !== state.user.id) return;
+    if (order.phone && !phoneVerified(order.phone) && state.user.phone !== order.phone) return;
+    state.session.editingOrder = null;
+    doDelete('order', order.id);
+    return;
+  }
   if (act === 'order-status') {
     mutate(function (data) {
       const o = findById(data.foodOrders, btn.dataset.id);
@@ -2649,6 +2777,7 @@ function onClick(e) {
     return;
   }
   if (act === 'leak-resolve') {
+    if (!isAdmin()) return;
     mutate(function (data) {
       const leak = findById(data.leaks, btn.dataset.id);
       if (leak) leak.resolved = true;
@@ -2669,6 +2798,7 @@ function onClick(e) {
     return;
   }
   if (act === 'ask-arrive') {
+    if (!isAdmin()) return;
     openModal({ name: 'confirm', th: 'ประกาศว่าอาหารรอบนี้มาถึงแล้ว? ทุกคนจะเห็นแบนเนอร์', en: 'Announce that this round has arrived? Everyone will see a banner.', act: 'confirm-arrive', id: btn.dataset.id });
     return;
   }
@@ -2727,11 +2857,12 @@ function onSubmit(e) {
   if (kind === 'profile') {
     state.user.name = get('name');
     if (isStudent()) {
-      const parsed = parseRoom(get('room'));
+      const parsed = roomFromForm(fd);
       const phone = parsePhone(get('phone'), false);
       if (!parsed) { showFormError(roomError()); return; }
       if (!phone) { showFormError(phoneError()); return; }
       applyStay(parsed, phone.phone);
+      if (phone.phone) rememberPhone(phone.phone);
     }
     saveSession();
     closeModal();
@@ -2744,6 +2875,8 @@ function onSubmit(e) {
   if (kind === 'round') { submitRound(fd); return; }
   if (kind === 'item') { submitItem(fd); return; }
   if (kind === 'order') { submitOrder(fd); return; }
+  if (kind === 'order-edit') { submitOrderEdit(fd, form); return; }
+  if (kind === 'order-phone') { submitOrderPhone(fd, form); return; }
   if (kind === 'boat') { submitBoat(fd); return; }
   if (kind === 'booking') { submitBooking(fd); return; }
   if (kind === 'pin') { submitPin(fd); return; }
@@ -2786,7 +2919,7 @@ function submitLogin(fd, form) {
     return;
   }
   const studentId = String(fd.get('studentId') || '').trim();
-  const parsed = parseRoom(fd.get('room'));
+  const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), false);
   if (!studentId) { fail('กรอกรหัสนักศึกษา', 'Enter a student ID.'); return; }
   if (!parsed) { fail(roomError(), roomError()); return; }
@@ -2827,6 +2960,7 @@ function enterDemoAdmin() {
 }
 function finishLogin() {
   ensureAudio();
+  if (state.user && state.user.phone) rememberPhone(state.user.phone);
   saveSession();
   state.session.view = 'home';
   state.session.heard = {};
@@ -2839,7 +2973,9 @@ async function logout() {
   state.session.modal = null;
   state.session.view = 'home';
   state.session.alarmSig = '';
+  stopSiren();
   saveSession();
+  render();
   try {
     if (window.firebase && firebase.apps && firebase.apps.length) {
       await firebase.auth().signOut();
@@ -2852,12 +2988,15 @@ async function logout() {
 function submitSos(fd) {
   const note = readMono(fd, 'note');
   if (!biOk(note)) { showFormError(t('บอกสิ่งที่เกิดขึ้นสั้น ๆ', 'Describe what is happening.')); return; }
-  const parsed = parseRoom(fd.get('room'));
+  const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), true);
   if (!parsed) { showFormError(roomError()); return; }
   if (!phone) { showFormError(phoneError()); return; }
   applyStay(parsed, phone.phone);
+  rememberPhone(phone.phone);
   saveSession();
+  ensureAudio();
+  startSiren();
   mutate(function (data) {
     data.alarms.unshift({
       id: uid('sos'),
@@ -2900,6 +3039,9 @@ function submitBroadcast(fd) {
     });
   });
   closeModal();
+  ensureAudio();
+  playUrgentBurst();
+  showBanner('ส่งสัญญาณเตือนแล้ว เสียงดังให้คนที่เปิดหน้านี้อยู่', 'Official alert sent. A loud alarm plays for people on this page.');
   toast('ส่งสัญญาณแล้ว', 'Alarm sent.');
 }
 function submitShuttle(fd) {
@@ -2972,7 +3114,7 @@ function submitItem(fd) {
 function submitOrder(fd) {
   const roundId = String(fd.get('round') || '');
   const itemId = String(fd.get('itemId') || '');
-  const parsed = parseRoom(fd.get('room'));
+  const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), true);
   if (!itemId) { showFormError(t('เลือกเมนู', 'Choose an item.')); return; }
   if (!parsed) { showFormError(roomError()); return; }
@@ -2980,6 +3122,7 @@ function submitOrder(fd) {
   const round = findById(state.data.foodRounds, roundId);
   if (!round || round.status !== 'open') { showFormError(t('รอบนี้ปิดรับแล้ว', 'This round is closed.')); return; }
   applyStay(parsed, phone.phone);
+  rememberPhone(phone.phone);
   saveSession();
   mutate(function (data) {
     data.foodOrders.unshift({
@@ -3000,6 +3143,52 @@ function submitOrder(fd) {
   });
   closeModal();
   toast('รับออเดอร์แล้ว', 'Order placed.');
+}
+function submitOrderEdit(fd, form) {
+  const id = String(fd.get('id') || '');
+  const order = findById(state.data.foodOrders, id);
+  const fail = function (msg) {
+    const el = form && form.querySelector('#formError');
+    if (!el) { toastRaw(msg); return; }
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  };
+  if (!order || !state.user || order.userId !== state.user.id || (order.phone && !phoneVerified(order.phone) && state.user.phone !== order.phone)) {
+    fail(t('ยืนยันเบอร์ของออเดอร์นี้ก่อน', 'Confirm this order’s phone number first.'));
+    return;
+  }
+  const itemId = String(fd.get('itemId') || '');
+  if (!itemId) { fail(t('เลือกเมนู', 'Choose an item.')); return; }
+  mutate(function (data) {
+    const row = findById(data.foodOrders, id);
+    if (!row || row.userId !== state.user.id) return;
+    row.itemId = itemId;
+    row.qty = Math.max(1, Math.min(5, Number(fd.get('qty') || 1)));
+    row.note = String(fd.get('note') || '').trim();
+  });
+  state.session.editingOrder = null;
+  render();
+  toast('อัปเดตออเดอร์แล้ว', 'Order updated.');
+}
+function submitOrderPhone(fd, form) {
+  const id = String(fd.get('id') || '');
+  const order = findById(state.data.foodOrders, id);
+  const phone = parsePhone(fd.get('phone'), true);
+  const fail = function (msg) {
+    const el = form && form.querySelector('#formError');
+    if (!el) { toastRaw(msg); return; }
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  };
+  if (!order || !state.user || order.userId !== state.user.id) {
+    fail(t('แก้ได้เฉพาะออเดอร์ของตัวเอง', 'You can edit only your own order.'));
+    return;
+  }
+  if (!phone) { fail(phoneError()); return; }
+  if (phone.phone !== order.phone) { fail(t('เบอร์ไม่ตรงกับออเดอร์นี้', 'That phone number does not match this order.')); return; }
+  rememberPhone(phone.phone);
+  state.session.editingOrder = id;
+  closeModal();
 }
 function submitBoat(fd) {
   const name = String(fd.get('name') || '').trim();
@@ -3028,7 +3217,7 @@ function submitBoat(fd) {
 function submitBooking(fd) {
   if (!isStudent()) { showFormError(t('เฉพาะนักศึกษาจองเรือได้', 'Only students can book a boat.')); return; }
   const name = String(fd.get('name') || '').trim();
-  const parsed = parseRoom(fd.get('room'));
+  const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), true);
   const passengers = Number(fd.get('passengers'));
   if (!name) { showFormError(t('กรอกชื่อ', 'Enter your name.')); return; }
@@ -3131,7 +3320,7 @@ function submitWater(fd) {
 }
 function submitLeak(fd, form) {
   const desc = readMono(fd, 'desc');
-  const parsed = parseRoom(fd.get('room'));
+  const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), true);
   const el = form.querySelector('#formError');
   const fail = function (msg) { el.textContent = msg; el.classList.remove('hidden'); };
@@ -3154,10 +3343,12 @@ function submitLeak(fd, form) {
       resolved: false
     });
   });
-  toast('ส่งจุดน้ำรั่วแล้ว', 'Leak report sent.');
+  state.session.leakPrivate = true;
+  render();
+  toast('ส่งรายงานให้เจ้าหน้าที่แล้ว คนอื่นในหอไม่เห็นรายการนี้', 'Sent to staff only. Other residents cannot see this report.');
 }
 function submitUtility(fd, form) {
-  const parsed = parseRoom(fd.get('room'));
+  const parsed = roomFromForm(fd);
   const phone = parsePhone(fd.get('phone'), true);
   const el = form.querySelector('#formError');
   const fail = function (msg) { el.textContent = msg; el.classList.remove('hidden'); };
@@ -3407,15 +3598,10 @@ function boot() {
       const next = String(el.value || '').replace(/\D/g, '').slice(0, 10);
       if (el.value !== next) el.value = next;
     }
-    if (el.dataset.kind === 'room') {
-      let v = String(el.value || '').replace(/[^\d-]/g, '');
-      const cut = v.indexOf('-');
-      if (cut >= 0) v = v.slice(0, cut + 1) + v.slice(cut + 1).replace(/-/g, '');
-      const bits = v.split('-');
-      bits[0] = (bits[0] || '').slice(0, 2);
-      if (bits.length > 1) bits[1] = bits[1].slice(0, 4);
-      v = bits.join('-');
-      if (el.value !== v) el.value = v;
+    if (el.dataset.kind === 'building' || el.dataset.kind === 'floorroom') {
+      const max = el.dataset.kind === 'building' ? 2 : 4;
+      const next = String(el.value || '').replace(/\D/g, '').slice(0, max);
+      if (el.value !== next) el.value = next;
     }
   });
   document.body.addEventListener('change', function (e) {
@@ -3446,9 +3632,7 @@ function boot() {
   if (!state.local.setupSeen) state.session.modal = { name: 'setup' };
   render();
   loadWeather();
-  if (state.local.firebaseConfig && state.local.firebaseConfig.apiKey) {
-    connectFirebase(state.local.firebaseConfig, { silent: true });
-  }
+  if (state.local.firebaseConfig && state.local.setupSeen) connectFirebase(state.local.firebaseConfig, { silent: true });
   setInterval(tickClocks, 1000);
   setInterval(function () {
     const expired = purgeExpired(state.data);
