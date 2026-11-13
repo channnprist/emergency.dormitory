@@ -1,0 +1,3468 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0284C7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KMITL Dorm Alert">
+<meta name="description" content="KMITL Dormitory Flood Warning and Student Assistance System — ระบบแจ้งเตือนน้ำท่วมและช่วยเหลือเด็กหอ สจล.">
+<title>หอสจล. · แจ้งเตือนน้ำท่วม</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230284C7'/%3E%3Cpath d='M3 21c3.2 0 3.2-3 6.4-3s3.2 3 6.4 3 3.2-3 6.4-3 3.2 3 6.4 3' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"IBM Plex Sans Thai"', '"IBM Plex Sans"', 'system-ui', 'sans-serif']
+        },
+        colors: {
+          brand: { 50: '#f0f9ff', 100: '#e0f2fe', 600: '#0284c7', 700: '#0369a1' }
+        }
+      }
+    }
+  };
+</script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: #f8fafc;
+    color: #0f172a;
+    font-family: "IBM Plex Sans Thai", "IBM Plex Sans", system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  button, a, input, select, textarea { font-family: inherit; }
+  button, a { touch-action: manipulation; }
+  :focus-visible { outline: 3px solid #ff5400; outline-offset: 2px; }
+  .hidden { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  #appView { display: none; min-height: 100vh; }
+  #appView.on { display: block; }
+  #sidebar { display: none; }
+  #tabbar { display: none; }
+  #tabbar.on {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 30;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    justify-content: space-around;
+  }
+  #viewScroll {
+    padding: 16px 16px calc(108px + env(safe-area-inset-bottom));
+    max-width: 1040px;
+  }
+  #fab {
+    position: fixed;
+    z-index: 40;
+    right: 16px;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px;
+    border: 0; border-radius: 999px;
+    color: white; font-weight: 700;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .25);
+  }
+  #fab.sos { background: #dc2626; }
+  #fab.cast { background: #d97706; }
+  #fab:active { transform: scale(.97); }
+  @media (min-width: 1024px) {
+    #appView.on { display: grid; grid-template-columns: 248px 1fr; }
+    #sidebar {
+      display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+      background: #fff; border-right: 1px solid #e2e8f0; padding: 18px 12px;
+    }
+    #tabbar.on { display: none; }
+    #viewScroll { padding: 24px 32px 48px; }
+    #fab { bottom: 24px; }
+  }
+  .card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: 999px; font-weight: 600; padding: 10px 16px;
+    border: 1px solid transparent; cursor: pointer; line-height: 1.2;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+  .btn-primary { background: #ff4d2d; color: #fff; box-shadow: 0 8px 18px rgba(255, 77, 45, .28); }
+  .btn-primary:hover { background: #f97316; }
+  .btn-ghost { background: #fff; color: #334155; border-color: #e2e8f0; }
+  .btn-ghost:hover { background: #f8fafc; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-amber { background: #d97706; color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 13px; box-shadow: none; }
+  .btn-block { width: 100%; }
+  .icon-btn {
+    width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; color: #ff5400; cursor: pointer;
+  }
+  .input, select.input, textarea.input {
+    width: 100%; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 10px 12px; background: #fff; color: #0f172a; font-size: 15px;
+  }
+  textarea.input { min-height: 76px; resize: vertical; }
+  .input:focus { border-color: #ff5400; box-shadow: 0 0 0 3px #ffedd5; outline: none; }
+  .field-hint { margin: 6px 0 12px; font-size: 12px; line-height: 1.45; color: #64748b; }
+  .label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700;
+    letter-spacing: .01em; white-space: nowrap;
+  }
+  .badge-red { background: #fee2e2; color: #b91c1c; }
+  .badge-amber { background: #fef3c7; color: #b45309; }
+  .badge-sky { background: #fff1e6; color: #c2410c; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-slate { background: #f1f5f9; color: #475569; }
+  .orig-badge {
+    display: inline-flex; align-items: center; height: 16px; padding: 0 6px;
+    border-radius: 999px; background: #fff1e6; color: #c2410c;
+    font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  }
+  .orig-sub { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: .02em; }
+  .sub-orig { margin-top: 2px; font-size: 12px; color: #64748b; line-height: 1.45; }
+  .lang-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .lang-switch { display: inline-flex; padding: 3px; background: #f1f5f9; border-radius: 12px; }
+  .lang-switch button {
+    border: 0; background: transparent; color: #64748b; font-weight: 700;
+    font-size: 13px; padding: 6px 10px; border-radius: 9px; cursor: pointer;
+  }
+  .lang-switch button.is-on { background: #ff5400; color: #fff; }
+  .tab-btn, .side-btn {
+    border: 0; background: transparent; color: #64748b; cursor: pointer;
+  }
+  .tab-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 11px; font-weight: 600; padding: 4px 2px; position: relative;
+  }
+  .tab-btn.is-on { color: #ff5400; }
+  .tab-btn.is-on::before {
+    content: ""; position: absolute; top: -6px; width: 28px; height: 3px;
+    border-radius: 99px; background: linear-gradient(135deg, #ff9f1c, #ff5400);
+  }
+  .side-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    text-align: left; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px;
+  }
+  .side-btn.is-on { background: #fff1e6; color: #c2410c; }
+  .side-btn:hover { background: #f8fafc; }
+  .side-btn.is-on:hover { background: #ffedd5; }
+  .ico { width: 1.25rem; height: 1.25rem; flex: 0 0 auto; }
+  .choice { position: relative; }
+  .choice input { position: absolute; opacity: 0; }
+  .choice span {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    min-height: 44px; padding: 8px 10px; border-radius: 12px;
+    border: 1px solid #e2e8f0; background: #fff; font-weight: 600; font-size: 14px;
+  }
+  body.locked { overflow: hidden; }
+  .choice:has(input:checked) span { border-color: #ff5400; background: #fff7ed; color: #c2410c; }
+  .choice.danger:has(input:checked) span { border-color: #dc2626; background: #fef2f2; color: #b91c1c; }
+  .choice.warn:has(input:checked) span { border-color: #d97706; background: #fffbeb; color: #b45309; }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 999px;
+    background: linear-gradient(135deg, #ff9f1c, #ff5400); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+  }
+  .appbar {
+    background: linear-gradient(135deg, #ff9f1c 0%, #ff5400 100%);
+    color: #fff;
+  }
+  .appbar .clock-label, .appbar .user-meta small { color: rgba(255,255,255,.86); }
+  .appbar .icon-btn { background: rgba(255,255,255,.16); color: #fff; border-color: transparent; }
+  .appbar .lang-switch { background: rgba(255,255,255,.22); }
+  .appbar .lang-switch button { color: #fff; }
+  .appbar .lang-switch button.is-on { background: #fff; color: #ff5400; }
+  .appbar .user-chip { background: rgba(255,255,255,.16); border-color: transparent; color: #fff; }
+  .appbar .avatar { background: #fff; color: #ff5400; }
+  .user-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid #e2e8f0; background: #fff; border-radius: 999px; padding: 4px 8px 4px 4px; cursor: pointer;
+  }
+  .user-meta { display: none; text-align: left; line-height: 1.15; }
+  .user-meta b { display: block; font-size: 13px; }
+  .user-meta small { color: #64748b; font-size: 11px; }
+  @media (min-width: 768px) { .user-meta { display: block; } .clock-label { display: block !important; } }
+  .clock-label { display: none; font-variant-numeric: tabular-nums; font-size: 12px; color: #64748b; }
+  .threat { height: 4px; width: 100%; }
+  .form-error { color: #b91c1c; background: #fef2f2; border-radius: 12px; padding: 8px 10px; font-size: 13px; font-weight: 600; }
+  #modalRoot { position: fixed; inset: 0; z-index: 60; }
+  .modal-back { position: absolute; inset: 0; background: rgba(15, 23, 42, .48); }
+  .modal-panel {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+    background: #fff; border-radius: 20px 20px 0 0;
+    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+    max-height: min(92vh, 920px); overflow: auto;
+    box-shadow: 0 -8px 30px rgba(15, 23, 42, .18);
+  }
+  @media (min-width: 1024px) {
+    .modal-panel {
+      left: 50%; right: auto; bottom: auto; top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(580px, calc(100% - 32px));
+      border-radius: 20px;
+    }
+  }
+  #toast {
+    position: fixed; z-index: 90; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(12px); opacity: 0; pointer-events: none;
+    background: #0f172a; color: #fff; padding: 10px 14px; border-radius: 12px;
+    font-size: 14px; font-weight: 600; max-width: min(92vw, 420px); text-align: center;
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (min-width: 1024px) { #toast { bottom: 28px; } }
+  .arrival {
+    display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+    background: #fff7ed; border: 1px solid #fdba74; color: #9a3412;
+    border-radius: 16px; padding: 12px 14px;
+  }
+  .call-row {
+    display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit;
+    padding: 12px; border-radius: 14px; border: 1px solid #e2e8f0; background: #fff;
+  }
+  .call-row:hover { border-color: #fdba74; }
+  .call-num { font-variant-numeric: tabular-nums; font-weight: 700; color: #c2410c; min-width: 72px; }
+  .alarm-screen {
+    position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center;
+    padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .alarm-screen.critical { background: #7f1d1d; color: #fff; }
+  .alarm-screen.warn { background: #9a3412; color: #fff; }
+  .alarm-card {
+    width: min(560px, 100%); background: rgba(0, 0, 0, .22);
+    border: 1px solid rgba(255,255,255,.28); border-radius: 24px; padding: 20px;
+  }
+  .alarm-screen .orig-badge { background: rgba(255,255,255,.18); color: #fff; }
+  .alarm-screen .orig-sub, .alarm-screen .sub-orig { color: rgba(255,255,255,.8); }
+  @keyframes siren {
+    0%, 100% { box-shadow: inset 0 0 0 0 rgba(255,255,255,0); }
+    50% { box-shadow: inset 0 0 0 6px rgba(255,255,255,.18); }
+  }
+  .alarm-screen.critical .alarm-card { animation: siren 1s ease-in-out infinite; }
+  .cctv {
+    position: relative; aspect-ratio: 16/9; border-radius: 16px; overflow: hidden;
+    background: #0f172a; color: #fff;
+  }
+  .cctv-video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+  .cctv-sky { position: absolute; inset: 0 0 42% 0; background: linear-gradient(#0f172a, #334155 55%, #475569); }
+  .cctv-skyline {
+    position: absolute; left: 6%; right: 6%; top: 30%; height: 24%;
+    background: linear-gradient(#94a3b8, #334155);
+    clip-path: polygon(0 100%, 6% 46%, 14% 72%, 24% 28%, 34% 64%, 46% 18%, 58% 58%, 70% 26%, 82% 62%, 92% 40%, 100% 70%, 100% 100%);
+    opacity: .95;
+  }
+  .cctv-gate {
+    position: absolute; left: 18%; width: 28%; top: 40%; height: 22%;
+    background: #1e293b; border-radius: 4px 4px 0 0; box-shadow: 20px 8px 0 #334155;
+  }
+  .cctv-ground { position: absolute; left: 0; right: 0; top: 52%; bottom: 0; background: #1f2937; }
+  .cctv-water {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, rgba(56,189,248,.55), rgba(3,105,161,.9));
+  }
+  .cctv-water::before {
+    content: ""; position: absolute; left: -20%; right: -20%; top: -8px; height: 16px;
+    background: radial-gradient(circle at 12px 8px, rgba(255,255,255,.5) 3px, transparent 4px);
+    background-size: 36px 16px;
+    animation: drift 7s linear infinite;
+  }
+  .cctv-scan {
+    position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,.05), rgba(255,255,255,.05) 1px, transparent 1px, transparent 3px);
+  }
+  .cctv-tag {
+    position: absolute; top: 10px; left: 10px; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .rec-dot { width: 8px; height: 8px; border-radius: 99px; background: #ef4444; box-shadow: 0 0 0 0 rgba(239,68,68,.7); animation: rec 1.2s infinite; }
+  .cctv-time { position: absolute; top: 10px; right: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .cctv-gauge {
+    position: absolute; right: 12px; bottom: 12px; width: 92px; padding: 8px;
+    background: rgba(15,23,42,.72); border-radius: 12px; font-size: 11px;
+  }
+  @media (max-width: 1023px) {
+    .cctv-gauge { right: 84px; }
+  }
+  .cctv-gauge b { display: block; font-size: 18px; line-height: 1; }
+  .sim-flag {
+    position: absolute; left: 10px; bottom: 10px; font-size: 10px; font-weight: 700;
+    letter-spacing: .08em; background: rgba(15,23,42,.72); padding: 4px 6px; border-radius: 8px;
+  }
+  @keyframes drift { from { transform: translateX(0); } to { transform: translateX(36px); } }
+  @keyframes rec { 50% { opacity: .35; } }
+  #campusMap { position: relative; z-index: 0; isolation: isolate; width: 100%; height: min(68vh, 520px); border-radius: 16px; background: #e7e5e4; }
+  .leaflet-container { font-family: inherit; border-radius: 16px; }
+  .leak-pin { background: transparent; border: 0; }
+  .leak-dot {
+    display: block; width: 18px; height: 18px; border-radius: 99px;
+    border: 2px solid #fff; box-shadow: 0 2px 8px rgba(15, 23, 42, .35);
+  }
+  .leak-dot.crit { background: #dc2626; }
+  .leak-dot.warn { background: #d97706; }
+  .leak-dot.sel { outline: 3px solid #ff5400; outline-offset: 2px; }
+  .leaflet-marker-icon.sensor-pin { overflow: visible !important; background: transparent; border: 0; }
+  .sensor-dot {
+    position: relative; display: block; width: 16px; height: 16px; margin: 14px;
+    border-radius: 99px; border: 2px solid #fff; box-sizing: border-box;
+  }
+  .sensor-dot.safe {
+    background: #16A34A;
+    box-shadow: 0 0 0 5px rgba(22, 163, 74, .28), 0 0 14px rgba(22, 163, 74, .8);
+  }
+  .sensor-dot.leak { background: #DC2626; box-shadow: 0 0 10px rgba(220, 38, 38, .85); }
+  .sensor-dot.leak::after {
+    content: ""; position: absolute; left: -8px; top: -8px; width: 28px; height: 28px;
+    border-radius: 99px; border: 2px solid #DC2626;
+    animation: sensor-pulse 1.45s ease-out infinite;
+  }
+  .sensor-dot.sel { outline: 3px solid #ff5400; outline-offset: 2px; }
+  @keyframes sensor-pulse {
+    0% { transform: scale(.55); opacity: .85; }
+    100% { transform: scale(1.85); opacity: 0; }
+  }
+  .legend-dot {
+    display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px;
+    border-radius: 99px; border: 2px solid #fff; box-sizing: border-box;
+  }
+  .legend-dot.safe { background: #16A34A; box-shadow: 0 0 0 3px rgba(22, 163, 74, .28), 0 0 8px rgba(22, 163, 74, .7); }
+  .legend-dot.leak { background: #DC2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .25); }
+  .sensor-pop { min-width: 210px; font-size: 13px; line-height: 1.4; }
+  .sensor-pop .sensor-id { font-weight: 700; letter-spacing: .02em; color: #c2410c; }
+  .sensor-pop .sensor-meta { margin: 4px 0; color: #64748b; font-size: 12px; }
+  .sensor-pop .is-safe { color: #15803d; font-weight: 700; }
+  .sensor-pop .is-leak { color: #dc2626; font-weight: 700; }
+  .sensor-pop ul { margin: 8px 0; padding-left: 16px; }
+  .leaflet-popup-content-wrapper { border-radius: 16px; }
+  .leaflet-popup-content { margin: 12px 14px; }
+  .seat-dot { display: inline-block; width: 10px; height: 10px; border-radius: 99px; margin-right: 4px; background: #e2e8f0; }
+  .seat-dot.on { background: #ff5400; }
+  .hero-bg {
+    background:
+      radial-gradient(900px 320px at 0% -10%, rgba(255, 159, 28, .38), transparent 55%),
+      linear-gradient(180deg, #fff7ed 0%, #f8fafc 46%, #f1f5f9 100%);
+  }
+  .login-hero.card {
+    background: linear-gradient(135deg, #ff9f1c 0%, #ff5400 100%);
+    color: #fff; border: 0;
+    box-shadow: 0 16px 40px rgba(255, 84, 0, .28);
+  }
+  .login-hero.card h1, .login-hero.card p { color: #fff; }
+  .login-hero.card .text-slate-600, .login-hero.card .text-slate-500, .login-hero.card .text-sky-700 { color: rgba(255,255,255,.92) !important; }
+  .bg-sky-600 { background-image: linear-gradient(135deg, #ff9f1c 0%, #ff5400 100%) !important; background-color: #ff5400 !important; }
+  .text-sky-600, .text-sky-700 { color: #ea580c !important; }
+  .text-sky-800, .text-sky-900 { color: #9a3412 !important; }
+  .bg-sky-50 { background-color: #fff7ed !important; }
+  .login-grid { display: grid; gap: 1.5rem; }
+  .login-form { order: 1; }
+  .login-hero { order: 2; }
+  @media (min-width: 1024px) {
+    .login-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+    .login-hero { order: 1; }
+    .login-form { order: 2; }
+  }
+  .boot-msg { padding: 48px 20px; text-align: center; color: #64748b; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <div id="loginView"><p class="boot-msg">KMITL Dorm Alert</p></div>
+  <div id="appView">
+    <aside id="sidebar"></aside>
+    <div id="mainCol" class="min-w-0">
+      <header id="header"></header>
+      <main id="viewScroll"></main>
+    </div>
+  </div>
+  <nav id="tabbar" aria-label="Primary"></nav>
+  <button id="fab" class="hidden" type="button"></button>
+  <div id="modalRoot" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div>
+  <div id="alarmRoot"></div>
+  <div id="toast" role="status"></div>
+  <div id="liveStatus" class="sr-only" aria-live="assertive"></div>
+  <noscript><p class="boot-msg">This app needs JavaScript.</p></noscript>
+
+<script>
+/* =========================================================================
+   KMITL Dormitory Flood Warning & Student Assistance
+   Single-file app. Demo data lives in localStorage. Paste a Firebase
+   web config to sync one Firestore document (kmitlDormAlert/live) across
+   devices. Roles are chosen at login; staff need the local access code
+   or a Firebase email/password account.
+   ========================================================================= */
+
+const DATA_KEY = 'kmitl-dorm-flood-v1-data';
+const PREF_KEY = 'kmitl-dorm-flood-v1-pref';
+const SESSION_KEY = 'kmitl-dorm-flood-v1-session';
+const DAY = 24 * 60 * 60 * 1000;
+const DEFAULT_ADMIN_CODE = 'KMITL-DORM';
+const CAMPUS_LAT = 13.7299;
+const CAMPUS_LNG = 100.7782;
+const CAMPUS_ZOOM = 16;
+const BOAT_CAP = 4;
+/* Checkpoints sit on OSM road vertices inside KMITL, about 300m apart along each road. */
+const SENSOR_NODES = [
+  { id: 'SENSOR-KMITL-01', lat: 13.731795, lng: 100.773386, line: 'north', th: 'ถนนเลียบมอเตอร์เวย์ ฝั่งตะวันตกของมหาวิทยาลัย', en: 'West motorway service road, campus perimeter', leak: false, ma: 0, water: 0, age: 8 },
+  { id: 'SENSOR-KMITL-02', lat: 13.731802, lng: 100.776163, line: 'north', th: 'ถนนเลียบมอเตอร์เวย์ เหนือลานพระจอม', en: 'North perimeter above King Mongkut court', leak: false, ma: 0.2, water: 0, age: 11 },
+  { id: 'SENSOR-KMITL-03', lat: 13.731824, lng: 100.778940, line: 'north', th: 'ถนนเลียบมอเตอร์เวย์ เหนืออาคารอธิการบดี', en: 'North perimeter above the president building', leak: false, ma: 0, water: 0, age: 5 },
+  { id: 'SENSOR-KMITL-04', lat: 13.731920, lng: 100.781716, line: 'north', th: 'ถนนเลียบมอเตอร์เวย์ เหนือคณะเทคโนโลยีสารสนเทศ', en: 'North perimeter above the IT faculty', leak: false, ma: 0.1, water: 0, age: 14 },
+  { id: 'SENSOR-KMITL-05', lat: 13.732656, lng: 100.784638, line: 'chalong', th: 'ถนนฉลองกรุง มุมตะวันออกเฉียงเหนือ', en: 'Chalong Krung Road, northeast corner', leak: false, ma: 0, water: 0, age: 9 },
+  { id: 'SENSOR-KMITL-06', lat: 13.730353, lng: 100.782370, line: 'chalong', th: 'ถนนฉลองกรุง ช่วงตะวันออกของมหาวิทยาลัย', en: 'Chalong Krung Road, east campus', leak: false, ma: 0.3, water: 1, age: 7 },
+  { id: 'SENSOR-KMITL-07', lat: 13.730508, lng: 100.779477, line: 'chalong', th: 'ถนนฉลองกรุง หน้าหอประชุมจุฬาภรณ์', en: 'Chalong Krung Road by Chulabhorn auditorium', leak: true, ma: 48.5, water: 22, age: 4 },
+  { id: 'SENSOR-KMITL-08', lat: 13.728067, lng: 100.778064, line: 'chalong', th: 'แยกถนนฉลองกรุงกับซอยฉลองกรุง 1', en: 'Chalong Krung and Soi Chalong Krung 1 junction', leak: false, ma: 0.2, water: 0, age: 6 },
+  { id: 'SENSOR-KMITL-09', lat: 13.727967, lng: 100.773646, line: 'soi', th: 'ซอยฉลองกรุง 1 หน้าหอพักนักศึกษา', en: 'Soi Chalong Krung 1, dormitory front road', leak: true, ma: 36.2, water: 18, age: 3 },
+  { id: 'SENSOR-KMITL-10', lat: 13.727891, lng: 100.770870, line: 'soi', th: 'ซอยฉลองกรุง 1 ฝั่งตะวันตก', en: 'Soi Chalong Krung 1, west end', leak: false, ma: 0, water: 0, age: 16 },
+  { id: 'SENSOR-KMITL-11', lat: 13.727070, lng: 100.771853, line: 'eng', th: 'Engineering Avenue ฝั่งตะวันตก', en: 'Engineering Avenue, west end', leak: false, ma: 0.1, water: 0, age: 12 },
+  { id: 'SENSOR-KMITL-12', lat: 13.727118, lng: 100.774629, line: 'eng', th: 'Engineering Avenue หน้าคณะวิศวกรรมศาสตร์', en: 'Engineering Avenue, engineering faculty front', leak: true, ma: 52.0, water: 15, age: 2 },
+  { id: 'SENSOR-KMITL-13', lat: 13.726415, lng: 100.776878, line: 'eng', th: 'Engineering Avenue หน้าหอประชุมวิศวะ', en: 'Engineering Avenue at the engineering hall', leak: false, ma: 0, water: 0, age: 18 },
+  { id: 'SENSOR-KMITL-14', lat: 13.729526, lng: 100.775066, line: 'dorm', th: 'ถนนหน้าหอพักนักศึกษา อาคาร 9–12', en: 'Dormitory front road, buildings 9–12', leak: false, ma: 0.4, water: 1, age: 5 },
+  { id: 'SENSOR-KMITL-15', lat: 13.728549, lng: 100.776083, line: 'dorm', th: 'ทางเดินเลียบหอพักไปทางวิศวกรรม', en: 'Dormitory walkway toward Engineering', leak: false, ma: 0, water: 0, age: 10 },
+  { id: 'SENSOR-KMITL-16', lat: 13.728733, lng: 100.780362, line: 'sci', th: 'ถนนคณะวิทยาศาสตร์', en: 'Faculty of Science road', leak: false, ma: 0, water: 0, age: 13 },
+  { id: 'SENSOR-KMITL-17', lat: 13.730377, lng: 100.781345, line: 'sci', th: 'ถนนหน้าคณะเทคโนโลยีสารสนเทศ', en: 'IT faculty front road', leak: false, ma: 0.1, water: 0, age: 9 },
+  { id: 'SENSOR-KMITL-18', lat: 13.730419, lng: 100.778056, line: 'court', th: 'ถนนลานพระจอมเกล้า', en: 'Clocktower court road', leak: false, ma: 0, water: 0, age: 15 },
+  { id: 'SENSOR-KMITL-19', lat: 13.727175, lng: 100.779192, line: 'hall', th: 'ถนนหอประชุมเจ้าพระยาสุรวงษ์', en: 'Surawongwaiwat convention hall road', leak: false, ma: 0.2, water: 0, age: 20 },
+  { id: 'SENSOR-KMITL-20', lat: 13.728065, lng: 100.783549, line: 'south', th: 'ถนนหลวงพรตพิทยพยัต มุมตะวันออกเฉียงใต้', en: 'Luang Phrot road, southeast perimeter', leak: true, ma: 41.7, water: 27, age: 6 },
+  { id: 'SENSOR-KMITL-21', lat: 13.729741, lng: 100.771181, line: 'west', th: 'ถนนเลียบสนามกีฬากลาง', en: 'Central stadium perimeter road', leak: false, ma: 0, water: 0, age: 17 },
+  { id: 'SENSOR-KMITL-22', lat: 13.727305, lng: 100.782790, line: 'south', th: 'ถนนบริการฝั่งตะวันออก ใกล้สถานีหัวตะเข้', en: 'East service road near Hua Takhe station', leak: false, ma: 0.1, water: 0, age: 8 }
+];
+const SENSOR_LINES = {
+  north: ['SENSOR-KMITL-01', 'SENSOR-KMITL-02', 'SENSOR-KMITL-03', 'SENSOR-KMITL-04'],
+  chalong: ['SENSOR-KMITL-08', 'SENSOR-KMITL-07', 'SENSOR-KMITL-06', 'SENSOR-KMITL-05'],
+  soi: ['SENSOR-KMITL-08', 'SENSOR-KMITL-09', 'SENSOR-KMITL-10'],
+  eng: ['SENSOR-KMITL-11', 'SENSOR-KMITL-12', 'SENSOR-KMITL-13'],
+  dorm: ['SENSOR-KMITL-14', 'SENSOR-KMITL-15'],
+  sci: ['SENSOR-KMITL-16', 'SENSOR-KMITL-17'],
+  court: ['SENSOR-KMITL-18', 'SENSOR-KMITL-07'],
+  hall: ['SENSOR-KMITL-08', 'SENSOR-KMITL-19'],
+  south: ['SENSOR-KMITL-20', 'SENSOR-KMITL-22'],
+  west: ['SENSOR-KMITL-10', 'SENSOR-KMITL-21', 'SENSOR-KMITL-01']
+};
+const FIRESTORE_RULES = [
+  "rules_version = '2';",
+  'service cloud.firestore {',
+  '  match /databases/{database}/documents {',
+  '    match /kmitlDormAlert/{doc} {',
+  '      allow read, write: if request.auth != null;',
+  '    }',
+  '  }',
+  '}'
+].join('\n');
+
+const BUILDINGS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (n) {
+  return [String(n), 'อาคาร ' + n, 'Building ' + n];
+});
+
+const SOS_TYPES = [
+  ['snake', 'งูเข้าห้อง', 'Snake in room'],
+  ['accident', 'อุบัติเหตุ', 'Accident'],
+  ['medical', 'เหตุทางการแพทย์', 'Medical emergency'],
+  ['flood', 'น้ำท่วมห้อง', 'Room flooding'],
+  ['fire', 'ไฟไหม้ / ควัน', 'Fire / smoke'],
+  ['other', 'ฉุกเฉินอื่น', 'Other emergency']
+];
+
+const CONTACTS = [
+  { group: 'national', phone: '1669', display: '1669', name: { th: 'กู้ชีพฉุกเฉิน', en: 'Emergency medical services', original: 'th' }, note: { th: 'ทั่วประเทศ', en: 'Nationwide', original: 'th' } },
+  { group: 'national', phone: '199', display: '199', name: { th: 'ดับเพลิง', en: 'Fire department', original: 'th' }, note: { th: 'ทั่วประเทศ', en: 'Nationwide', original: 'th' } },
+  { group: 'national', phone: '191', display: '191', name: { th: 'ตำรวจ', en: 'Police', original: 'th' }, note: { th: 'ทั่วประเทศ', en: 'Nationwide', original: 'th' } },
+  { group: 'national', phone: '1784', display: '1784', name: { th: 'ปภ. สายด่วนภัยพิบัติ', en: 'Disaster hotline (DDPM)', original: 'th' }, note: { th: 'น้ำท่วมและภัยพิบัติ', en: 'Floods and disasters', original: 'th' } },
+  { group: 'campus', phone: '+6623298000', display: '02-329-8000', name: { th: 'สายด่วน สจล. (ติดต่อ รปภ.)', en: 'KMITL call center (ask for security)', original: 'th' }, note: { th: 'เบอร์กลางสถาบันที่เผยแพร่ไว้', en: 'Published institute main line', original: 'th' } },
+  { group: 'campus', phone: '+6623264387', display: '02-326-4387', name: { th: 'ห้องพยาบาล สจล.', en: 'KMITL Medical Center', original: 'th' }, note: { th: 'ต่อ 3633, 3634 · วันทำการ', en: 'ext. 3633, 3634 · office days', original: 'th' } },
+  { group: 'campus', phone: '+6623298000', display: '02-329-8000', name: { th: 'หอพัก กองกิจการนักศึกษา', en: 'Dormitory duty · Student Affairs', original: 'th' }, note: { th: 'ต่อ 3330 หรือ 3635 ขอเวรหอ', en: 'ext. 3330 or 3635, ask for dorm duty', original: 'th' } },
+  { group: 'campus', phone: '+6623298000', display: '02-329-8000', name: { th: 'สำนักงานบริหารทรัพย์สิน (อาคาร/หอ)', en: 'Property office (buildings & dorms)', original: 'th' }, note: { th: 'ต่อ 2338', en: 'ext. 2338', original: 'th' } },
+  { group: 'campus', phone: '+6623298197', display: '02-329-8197', name: { th: 'ติดต่อหอพัก IMSE', en: 'IMSE dorm contact', original: 'th' }, note: { th: 'เบอร์ที่เผยแพร่บนหน้าหอพัก IMSE', en: 'Published on the IMSE dorm page', original: 'th' } }
+];
+
+const state = {
+  lang: 'th',
+  user: null,
+  local: { firebaseConfig: null, adminCode: DEFAULT_ADMIN_CODE, sound: true, setupSeen: false },
+  data: null,
+  session: {
+    view: 'home',
+    transitTab: 'shuttle',
+    boardTab: 'report',
+    modal: null,
+    skipModalCapture: false,
+    selectedPin: null,
+    heard: {},
+    heardArrival: {},
+    dismissedArrival: {},
+    keepScroll: false,
+    alarmSig: '',
+    needSoundTap: false,
+    draftLogin: { role: 'student' }
+  },
+  weather: null,
+  sync: { mode: 'demo', error: '', authWarning: false }
+};
+
+let db = null;
+let unsub = null;
+let pushTimer = null;
+let applyingRemote = false;
+let audioCtx = null;
+let toastTimer = null;
+
+function t(th, en) { return state.lang === 'en' ? en : th; }
+function esc(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function uid(prefix) {
+  const rnd = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+  return prefix + '-' + String(rnd).replace(/-/g, '').slice(0, 12);
+}
+function bi(th, en, original) {
+  return { th: th || '', en: en || '', original: original || 'th' };
+}
+function tx(field) {
+  if (field == null) return '';
+  if (typeof field === 'string') return field;
+  const active = state.lang;
+  return field[active] || field[field.original || 'th'] || field.th || field.en || '';
+}
+function textBlock(field, opts) {
+  opts = opts || {};
+  if (field == null || field === '') return '';
+  const obj = typeof field === 'string' ? { th: field, en: field, original: 'th' } : field;
+  const orig = obj.original === 'en' ? 'en' : 'th';
+  const active = state.lang;
+  const hasActive = !!(obj[active] && String(obj[active]).trim());
+  const primary = hasActive ? obj[active] : (obj[orig] || obj.th || obj.en || '');
+  const origText = obj[orig] || '';
+  if (!String(primary).trim() && !String(origText).trim()) return '';
+  const showOrigLine = active !== orig && origText && origText !== primary;
+  const untranslated = active !== orig && !hasActive;
+  const badge = opts.badge === false ? '' : (
+    '<div class="lang-row"><span class="orig-badge">' + esc(active.toUpperCase()) + '</span>' +
+    '<span class="orig-sub">Original: ' + esc(orig.toUpperCase()) + '</span>' +
+    (untranslated ? '<span class="orig-sub">· ' + esc(t('ยังไม่มีคำแปล', 'No translation yet')) + '</span>' : '') +
+    '</div>'
+  );
+  return '<div class="' + (opts.wrap || '') + '">' + badge +
+    '<div class="' + (opts.main || '') + '">' + esc(primary) + '</div>' +
+    (showOrigLine ? '<div class="' + (opts.sub || 'sub-orig') + '">' + esc(origText) + '</div>' : '') +
+    '</div>';
+}
+function buildingLabel(id) {
+  const row = BUILDINGS.find(function (b) { return b[0] === id; });
+  if (!row) return id || '—';
+  return state.lang === 'en' ? row[2] : row[1];
+}
+function bkkParts(ms) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(ms ? new Date(ms) : new Date());
+  const get = function (type) { return parts.find(function (p) { return p.type === type; }).value; };
+  return { y: get('year'), mo: get('month'), d: get('day'), h: get('hour') % 24, mi: get('minute') };
+}
+function bkkMinutes() {
+  const p = bkkParts();
+  return Number(p.h) * 60 + Number(p.mi);
+}
+function bkkToday() {
+  const p = bkkParts();
+  return p.y + '-' + p.mo + '-' + p.d;
+}
+function bkkAt(hour, minute) {
+  const p = bkkParts();
+  const hh = String(hour).padStart(2, '0');
+  const mm = String(minute).padStart(2, '0');
+  return Date.parse(p.y + '-' + p.mo + '-' + p.d + 'T' + hh + ':' + mm + ':00+07:00');
+}
+function hhmm(ms) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).format(new Date(ms));
+}
+function formatWhen(ms) {
+  if (!ms) return '—';
+  return new Intl.DateTimeFormat(state.lang === 'th' ? 'th-TH' : 'en-GB', {
+    timeZone: 'Asia/Bangkok',
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).format(new Date(ms));
+}
+function relTime(ms) {
+  const min = Math.round((Date.now() - ms) / 60000);
+  if (min < 1) return t('เมื่อสักครู่', 'Just now');
+  if (min < 60) return t(min + ' นาทีที่แล้ว', min + ' min ago');
+  const hr = Math.round(min / 60);
+  if (hr < 24) return t(hr + ' ชม.ที่แล้ว', hr + ' hr ago');
+  return formatWhen(ms);
+}
+function toMin(hhmmStr) {
+  const bits = String(hhmmStr || '0:0').split(':');
+  return Number(bits[0]) * 60 + Number(bits[1] || 0);
+}
+function telHref(num) { return 'tel:' + String(num).replace(/[^\d+]/g, ''); }
+function safeHttpUrl(url) {
+  try {
+    const u = new URL(String(url || '').trim());
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch (e) { /* ignore bad urls */ }
+  return '';
+}
+function isAdmin() { return !!(state.user && state.user.role === 'admin'); }
+function isStudent() { return !!(state.user && state.user.role === 'student'); }
+
+/* Room format: Building-FloorRoom. Buildings 1–8 are floors 1–5, rooms 01–10.
+   Buildings 9–12 are floors 1–10, rooms 01–20. No ground floor. */
+function parseRoom(raw) {
+  const s = String(raw || '').trim();
+  const match = s.match(/^(\d{1,2})-(\d{3,4})$/);
+  if (!match) return null;
+  const building = Number(match[1]);
+  const rest = match[2];
+  if (building < 1 || building > 12) return null;
+  let floor;
+  let room;
+  if (building <= 8) {
+    if (rest.length !== 3) return null;
+    floor = Number(rest.charAt(0));
+    room = Number(rest.slice(1));
+    if (floor < 1 || floor > 5 || room < 1 || room > 10) return null;
+  } else if (rest.length === 4) {
+    if (rest.slice(0, 2) !== '10') return null;
+    floor = 10;
+    room = Number(rest.slice(2));
+    if (room < 1 || room > 20) return null;
+  } else if (rest.length === 3) {
+    floor = Number(rest.charAt(0));
+    room = Number(rest.slice(1));
+    if (floor < 1 || floor > 9 || room < 1 || room > 20) return null;
+  } else return null;
+  const roomText = String(room).padStart(2, '0');
+  return { building: String(building), floor: floor, room: room, canonical: building + '-' + floor + roomText };
+}
+function roomError() {
+  return t(
+    'เลขห้องไม่ถูกต้อง ใช้ได้แค่ตัวเลขกับขีดเดียว ในรูปแบบอาคาร-ชั้นห้อง เช่น 1-504 (อาคาร 1 ชั้น 5 ห้อง 04), 9-716 (อาคาร 9 ชั้น 7 ห้อง 16), 12-1020 (อาคาร 12 ชั้น 10 ห้อง 20) อาคาร 1–8 มีชั้น 1–5 และห้อง 01–10 อาคาร 9–12 มีชั้น 1–10 และห้อง 01–20 ไม่มีชั้น G หรือ 0',
+    'Invalid room. Digits and one hyphen only, format Building-FloorRoom. Examples: 1-504 (building 1, floor 5, room 04), 9-716 (building 9, floor 7, room 16), 12-1020 (building 12, floor 10, room 20). Buildings 1–8: floors 1–5, rooms 01–10. Buildings 9–12: floors 1–10, rooms 01–20. Ground floor (G or 0) is not allowed.'
+  );
+}
+function parsePhone(raw, required) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return required ? null : { phone: '', empty: true };
+  if (!/^0\d{9}$/.test(digits)) return null;
+  return { phone: digits, empty: false };
+}
+function phoneError() {
+  return t(
+    'เบอร์โทรต้องเป็นตัวเลขเท่านั้น ยาว 10 หลัก และขึ้นต้นด้วย 0 เช่น 0812345678',
+    'Phone must be digits only, exactly 10 digits, and start with 0, for example 0812345678.'
+  );
+}
+function applyStay(parsed, phone) {
+  if (!state.user) return;
+  if (parsed) {
+    state.user.building = parsed.building;
+    state.user.floor = parsed.floor;
+    state.user.room = parsed.canonical;
+  }
+  if (typeof phone === 'string') state.user.phone = phone;
+}
+function roomField(value) {
+  return '<label class="label">' + esc(t('เลขห้อง', 'Room number')) + '</label>' +
+    '<input class="input" name="room" data-kind="room" inputmode="numeric" autocomplete="off" placeholder="1-109" required value="' + esc(value || '') + '">' +
+    '<p class="field-hint">' + esc(t('เช่น 1-504 = อาคาร 1 ชั้น 5 ห้อง 04 · 9-716 = อาคาร 9 ชั้น 7 ห้อง 16 · 12-1020 = อาคาร 12 ชั้น 10 ห้อง 20', 'e.g. 1-504 = building 1, floor 5, room 04 · 9-716 = building 9, floor 7, room 16 · 12-1020 = building 12, floor 10, room 20')) + '</p>';
+}
+function phoneField(value, required) {
+  return '<label class="label">' + esc(required ? t('เบอร์โทร', 'Phone') : t('เบอร์โทร (ไม่บังคับ)', 'Phone (optional)')) + '</label>' +
+    '<input class="input" name="phone" data-kind="phone" inputmode="numeric" autocomplete="tel" maxlength="10" placeholder="0812345678"' + (required ? ' required' : '') + ' value="' + esc(String(value || '').replace(/\D/g, '')) + '">' +
+    '<p class="field-hint">' + esc(t('ตัวเลข 10 หลัก ขึ้นต้นด้วย 0', '10 digits, starting with 0')) + '</p>';
+}
+function boatOccupied(boat) {
+  return (boat.bookings || []).reduce(function (sum, row) { return sum + (Number(row.passengers) || 0); }, 0);
+}
+function boatRemaining(boat) {
+  return Math.max(0, BOAT_CAP - boatOccupied(boat));
+}
+function boatLiveStatus(boat) {
+  if (boat.status === 'maintenance') return 'maintenance';
+  if (boatOccupied(boat) > 0) return 'full';
+  return 'available';
+}
+function boatCanBook(boat) {
+  return isStudent() && boatLiveStatus(boat) === 'available';
+}
+function sensorNode(id) {
+  return SENSOR_NODES.find(function (n) { return n.id === id; });
+}
+function blankSensor(node, now) {
+  return {
+    id: node.id,
+    lat: node.lat,
+    lng: node.lng,
+    road: bi(node.th, node.en, 'th'),
+    status: node.leak ? 'leak' : 'safe',
+    leakageMa: node.leak ? node.ma : node.ma,
+    waterCm: node.water,
+    updatedAt: now - node.age * 60000
+  };
+}
+function ensureSensors(data) {
+  const now = Date.now();
+  const prev = {};
+  (data.sensors || []).forEach(function (s) { if (s && s.id) prev[s.id] = s; });
+  data.sensors = SENSOR_NODES.map(function (node) {
+    const row = blankSensor(node, now);
+    const old = prev[node.id];
+    if (!old) return row;
+    row.status = old.status === 'leak' ? 'leak' : 'safe';
+    const ma = Number(old.leakageMa);
+    const water = Number(old.waterCm);
+    if (isFinite(ma)) row.leakageMa = ma;
+    if (isFinite(water)) row.waterCm = water;
+    if (old.updatedAt) row.updatedAt = old.updatedAt;
+    if (row.status === 'safe' && row.leakageMa >= 5) row.leakageMa = 0;
+    if (row.status === 'leak' && row.leakageMa < 5) row.leakageMa = node.ma || 48.5;
+    return row;
+  });
+}
+function sensorPopupHtml(s) {
+  const leak = s.status === 'leak';
+  return '<div class="sensor-pop"><div class="sensor-id">' + esc(s.id) + '</div>' +
+    textBlock(s.road, { main: 'font-semibold' }) +
+    '<p class="sensor-meta">' + esc(t('จุดตรวจทุก 300 เมตร', '300m grid checkpoint')) + '</p>' +
+    '<p class="' + (leak ? 'is-leak' : 'is-safe') + '">' + esc(leak ? t('พบจุดไฟรั่ว', 'Electrical leak detected') : t('ปกติ / ปลอดภัย', 'Safe')) + '</p>' +
+    '<ul><li>' + esc(t('กระแสไฟรั่ว', 'Leakage current')) + ': <b>' + Number(s.leakageMa).toFixed(1) + ' mA</b> · ' + esc(leak ? t('อันตราย', 'Danger') : t('ปลอดภัย', 'Safe')) + '</li>' +
+    '<li>' + esc(t('ระดับน้ำ', 'Water level')) + ': <b>' + Math.round(Number(s.waterCm) || 0) + ' cm</b></li>' +
+    '<li>' + esc(t('อัปเดตล่าสุด', 'Last updated')) + ': ' + esc(relTime(s.updatedAt)) + '</li></ul>' +
+    (isAdmin() ? '<button type="button" class="btn btn-sm btn-block ' + (leak ? 'btn-ghost' : 'btn-danger') + '" data-act="sensor-toggle" data-id="' + esc(s.id) + '">' + esc(leak ? t('จำลองว่าปกติ', 'Simulate safe') : t('จำลองไฟรั่ว', 'Simulate leak')) + '</button>' : '<p class="sensor-meta">' + esc(t('นักศึกษาดูได้อย่างเดียว', 'Students have a read-only view.')) + '</p>') +
+    '</div>';
+}
+function toggleSensor(id) {
+  if (!isAdmin()) return;
+  state.session.selectedSensor = id;
+  state.session.keepScroll = true;
+  mutate(function (data) {
+    const s = findById(data.sensors, id);
+    if (!s) return;
+    if (s.status === 'leak') {
+      s.status = 'safe';
+      s.leakageMa = 0;
+      s.waterCm = 0;
+    } else {
+      s.status = 'leak';
+      s.leakageMa = 48.5;
+      s.waterCm = 20;
+    }
+    s.updatedAt = Date.now();
+  });
+}
+function simulateSensorScan() {
+  if (!isAdmin()) return;
+  const prone = ['SENSOR-KMITL-07', 'SENSOR-KMITL-09', 'SENSOR-KMITL-12', 'SENSOR-KMITL-14', 'SENSOR-KMITL-19', 'SENSOR-KMITL-20'];
+  state.session.keepScroll = true;
+  mutate(function (data) {
+    data.sensors.forEach(function (s) {
+      if (s.status === 'leak') {
+        s.leakageMa = Math.round((30 + Math.random() * 35) * 10) / 10;
+        s.waterCm = Math.round(8 + Math.random() * 28);
+      } else {
+        s.leakageMa = Math.round(Math.random() * 4) / 10;
+        s.waterCm = Math.random() < 0.2 ? 1 : 0;
+      }
+      s.updatedAt = Date.now();
+    });
+    const step = (data.sensorScan || 0) + 1;
+    data.sensorScan = step;
+    const targetId = prone[step % prone.length];
+    const target = findById(data.sensors, targetId);
+    if (target) {
+      if (target.status === 'leak') {
+        target.status = 'safe';
+        target.leakageMa = 0;
+        target.waterCm = 0;
+      } else {
+        target.status = 'leak';
+        target.leakageMa = Math.round((35 + Math.random() * 20) * 10) / 10;
+        target.waterCm = 12 + Math.floor(Math.random() * 16);
+      }
+      target.updatedAt = Date.now();
+      state.session.selectedSensor = target.id;
+    }
+  });
+  toast('สแกนเซนเซอร์ทั้งโครงข่ายแล้ว', 'Live sensor scan complete.');
+}
+
+function icon(name) {
+  const paths = {
+    home: '<path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1Z"/>',
+    bus: '<rect x="4" y="5" width="16" height="12" rx="2"/><path d="M4 11h16M7 17v2M17 17v2M7 8h3"/>',
+    food: '<path d="M5 3v8a3 3 0 0 0 6 0V3M8 3v18M16 3c2 2 3 4 3 7v11M16 8h3"/>',
+    map: '<path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.2"/>',
+    bell: '<path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 7H3s3 0 3-7Z"/><path d="M10 19a2 2 0 0 0 4 0"/>',
+    boat: '<path d="M3 15 12 8l9 7"/><path d="M4 15h16l-1.2 3.2a2 2 0 0 1-1.9 1.3H7.1a2 2 0 0 1-1.9-1.3L4 15Z"/>',
+    phone: '<path d="M8 4h3l1 4-2 1a12 12 0 0 0 5 5l1-2 4 1v3a2 2 0 0 1-2 2A16 16 0 0 1 6 6a2 2 0 0 1 2-2Z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    pencil: '<path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13 7 4 4"/>',
+    trash: '<path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>',
+    drop: '<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z"/>',
+    bolt: '<path d="M13 3 5 14h7l-1 7 8-11h-7l1-7Z"/>',
+    volume: '<path d="M4 10h4l5-4v12l-5-4H4Z"/><path d="M16 9a5 5 0 0 1 0 6"/>',
+    mute: '<path d="M4 10h4l5-4v12l-5-4H4Z"/><path d="m17 10 4 4M21 10l-4 4"/>',
+    user: '<circle cx="12" cy="8" r="3"/><path d="M5 19a7 7 0 0 1 14 0"/>',
+    check: '<path d="m5 12 5 5L20 7"/>',
+    alert: '<path d="M12 4 3 19h18L12 4Z"/><path d="M12 10v4M12 16h.01"/>',
+    cloud: '<path d="M7 18h10a4 4 0 0 0 .4-8 6 6 0 0 0-11.5 1.8A3.5 3.5 0 0 0 7 18Z"/>',
+    sun: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
+    megaphone: '<path d="M4 10v4a2 2 0 0 0 2 2h1l4 4V4L7 8H6a2 2 0 0 0-2 2Z"/><path d="M16 9a4 4 0 0 1 0 6M14 8l6-2v12l-6-2"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M18.4 5.6 16.9 7.1M7.1 16.9 5.6 18.4"/>'
+  };
+  return '<svg viewBox="0 0 24 24" class="ico" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">' + (paths[name] || '') + '</svg>';
+}
+
+function weatherMeta(code) {
+  const c = Number(code);
+  if (c === 0) return { name: 'sun', th: 'ท้องฟ้าแจ่มใส', en: 'Clear' };
+  if (c <= 3) return { name: 'cloud', th: 'มีเมฆบางส่วน', en: 'Partly cloudy' };
+  if (c <= 48) return { name: 'cloud', th: 'หมอก', en: 'Fog' };
+  if (c <= 57) return { name: 'drop', th: 'ฝนปรอย', en: 'Drizzle' };
+  if (c <= 67) return { name: 'drop', th: 'ฝนตก', en: 'Rain' };
+  if (c <= 77) return { name: 'cloud', th: 'หิมะหรือลูกเห็บ', en: 'Snow or ice' };
+  if (c <= 82) return { name: 'drop', th: 'ฝนซู่', en: 'Showers' };
+  return { name: 'bolt', th: 'พายุฝนฟ้าคะนอง', en: 'Thunderstorm' };
+}
+
+/* ---------- sample campus data (first launch only) ---------- */
+function seed() {
+  const nowMin = bkkMinutes();
+  const shuttleRows = [
+    ['06:40', 'หอพัก → อาคารเรียน', 'Dorm → academic buildings', 'ขึ้นที่ป้ายหน้าหอ A', 'Board at the Dorm A stop'],
+    ['07:20', 'หอพัก → แอร์พอร์ต เรล ลิงก์ ลาดกระบัง', 'Dorm → Airport Rail Link Lat Krabang', '', ''],
+    ['12:00', 'หอพัก → แอร์พอร์ต เรล ลิงก์', 'Dorm → Airport Rail Link', 'รถไปแอร์ลิงก์', 'Airport Rail Link shuttle'],
+    ['15:30', 'หอพัก → สนามบินสุวรรณภูมิ', 'Dorm → Suvarnabhumi Airport', 'รถไปสนามบิน', 'Airport shuttle'],
+    ['17:45', 'แอร์ลิงก์ / สนามบิน → หอพัก', 'ARL / Airport → Dorm', '', ''],
+    ['21:00', 'เที่ยวสุดท้าย แอร์ลิงก์ → หอพัก', 'Last bus · ARL → Dorm', 'ถ้าน้ำสูง อาจยกเลิกเที่ยวนี้', 'This trip may be cancelled if the water rises']
+  ];
+  const shuttles = shuttleRows.map(function (row) {
+    const status = (function () {
+      const at = toMin(row[0]);
+      if (nowMin > at + 20) return 'departed';
+      if (Math.abs(nowMin - at) <= 8) return 'boarding';
+      return 'scheduled';
+    })();
+    return {
+      id: uid('bus'),
+      time: row[0],
+      dest: bi(row[1], row[2], 'th'),
+      note: bi(row[3], row[4], 'th'),
+      status: status,
+      delayMin: 0
+    };
+  });
+  const upcoming = shuttles.find(function (s) { return toMin(s.time) >= nowMin - 5 && s.status !== 'departed'; });
+  if (upcoming) {
+    upcoming.status = 'delayed';
+    upcoming.delayMin = 15;
+    upcoming.note = bi('น้ำขังบนถนนฉลองกรุง รถออกช้าประมาณ 15 นาที', 'Water on Chalong Krung Road. About 15 minutes late.', 'th');
+  }
+
+  const lunchId = uid('round');
+  const dinnerId = uid('round');
+  const liveId = uid('round');
+  const snackId = uid('round');
+  const krapow = uid('item');
+  const chicken = uid('item');
+  const omelette = uid('item');
+  const water = uid('item');
+  const pork = uid('item');
+  const liveEnd = Date.now() + 90 * 60 * 1000;
+  const lunchPast = nowMin > toMin('12:00');
+  const dinnerPast = nowMin > toMin('18:30');
+
+  function item(id, th, en, price) {
+    return { id: id, name: bi(th, en, 'th'), price: price, createdAt: Date.now() };
+  }
+
+  const foodRounds = [
+    {
+      id: liveId,
+      title: bi('รอบพิเศษช่วงน้ำท่วม', 'Flood-response food round', 'th'),
+      note: bi('สั่งได้จนถึงเวลาปิด รับของที่ลานหน้าหอ A', 'Order until close. Pick up at the Dorm A court.', 'th'),
+      startLabel: hhmm(Date.now()),
+      endLabel: hhmm(liveEnd),
+      deadline: liveEnd,
+      status: 'open',
+      createdAt: Date.now(),
+      arrivedAt: null,
+      menu: [
+        item(krapow, 'ข้าวกะเพราไก่ไข่ดาว', 'Basil chicken with fried egg', 45),
+        item(chicken, 'ข้าวมันไก่', 'Hainanese chicken rice', 40),
+        item(omelette, 'ข้าวไข่เจียว', 'Omelette rice', 35),
+        item(water, 'น้ำเปล่า', 'Bottled water', 10)
+      ]
+    },
+    {
+      id: lunchId,
+      title: bi('รอบกลางวัน', 'Lunch round', 'th'),
+      note: bi('หน้าต่างสั่ง 11:00–12:00', 'Ordering window 11:00–12:00', 'th'),
+      startLabel: '11:00',
+      endLabel: '12:00',
+      deadline: bkkAt(12, 0),
+      status: lunchPast ? 'closed' : 'open',
+      createdAt: Date.now() - 3 * 60 * 60 * 1000,
+      arrivedAt: null,
+      menu: [
+        item(uid('item'), 'ข้าวกะเพราหมูกรอบ', 'Crispy pork basil rice', 50),
+        item(uid('item'), 'ข้าวไข่เจียว', 'Omelette rice', 35)
+      ]
+    },
+    {
+      id: dinnerId,
+      title: bi('รอบเย็น', 'Dinner round', 'th'),
+      note: bi('หน้าต่างสั่ง 17:00–18:30', 'Ordering window 17:00–18:30', 'th'),
+      startLabel: '17:00',
+      endLabel: '18:30',
+      deadline: dinnerPast ? (Date.now() + 3 * 60 * 60 * 1000) : bkkAt(18, 30),
+      status: dinnerPast ? 'open' : 'open',
+      createdAt: Date.now() - 60 * 60 * 1000,
+      arrivedAt: null,
+      menu: [item(pork, 'ข้าวผัดกะเพราหมู', 'Pork basil fried rice', 45), item(uid('item'), 'น้ำเปล่า', 'Bottled water', 10)]
+    },
+    {
+      id: snackId,
+      title: bi('รอบของว่าง', 'Snack round', 'th'),
+      note: bi('ส่งถึงลานหอ A แล้ว', 'Delivered to the Dorm A court.', 'th'),
+      startLabel: '14:30',
+      endLabel: '15:00',
+      deadline: Date.now() + 20 * 60 * 60 * 1000,
+      status: 'closed',
+      createdAt: Date.now() - 2 * 60 * 60 * 1000,
+      arrivedAt: Date.now() - 20 * 60 * 1000,
+      menu: [item(uid('item'), 'ขนมปังสังขยา', 'Thai custard bread', 20)]
+    }
+  ];
+
+  if (dinnerPast) {
+    const dinner = foodRounds.find(function (r) { return r.id === dinnerId; });
+    dinner.note = bi('เลยเวลาปกติแล้ว แต่เปิดต่อเพราะสถานการณ์น้ำท่วม', 'Past the usual window, kept open because of flooding.', 'th');
+    dinner.status = 'open';
+  }
+
+  return {
+    schema: 1,
+    rev: Date.now(),
+    shuttles: shuttles,
+    foodRounds: foodRounds,
+    foodOrders: [
+      { id: uid('ord'), roundId: liveId, itemId: krapow, qty: 1, room: '1-109', building: '1', floor: 1, phone: '0812345678', name: 'อารยา วงศ์สุวรรณ', userId: 'stu-demo', status: 'preparing', note: '', createdAt: Date.now() - 18 * 60000 },
+      { id: uid('ord'), roundId: liveId, itemId: chicken, qty: 2, room: '9-414', building: '9', floor: 4, phone: '0891234567', name: 'Mintra S.', userId: 'stu-mintra', status: 'pending', note: 'ไม่เผ็ด / not spicy', createdAt: Date.now() - 9 * 60000 },
+      { id: uid('ord'), roundId: liveId, itemId: water, qty: 3, room: '12-220', building: '12', floor: 2, phone: '0861112233', name: 'Ken Okada', userId: 'stu-ken', status: 'pending', note: '', createdAt: Date.now() - 4 * 60000 }
+    ],
+    boats: [
+      { id: uid('boat'), name: 'Boat #1', capacity: 4, status: 'available', bookings: [], note: bi('จอดที่ท่าหน้าหอ', 'Docked at the dorm pier', 'th'), updatedAt: Date.now() - 12 * 60000 },
+      { id: uid('boat'), name: 'Boat #2', capacity: 4, status: 'full', bookings: [{ id: uid('book'), name: 'มินตรา ศรีสุข', room: '9-414', phone: '0891234567', passengers: 2, userId: 'stu-mintra', createdAt: Date.now() - 6 * 60000 }], note: bi('มีผู้จอง 2 คนแล้ว ปิดรับจองเพิ่มจนกว่าจะรีเซ็ต', 'Two passengers booked. Closed to more riders until staff reset it.', 'th'), updatedAt: Date.now() - 6 * 60000 },
+      { id: uid('boat'), name: 'Boat #3', capacity: 4, status: 'full', bookings: [{ id: uid('book'), name: 'Ken Okada', room: '12-220', phone: '0861112233', passengers: 4, userId: 'stu-ken', createdAt: Date.now() - 20 * 60000 }], note: bi('เต็มแล้ว รอเจ้าหน้าที่รีเซ็ต', 'Full. Waiting for staff to reset it.', 'th'), updatedAt: Date.now() - 20 * 60000 },
+      { id: uid('boat'), name: 'Boat #4', capacity: 4, status: 'maintenance', bookings: [], note: bi('ตรวจเครื่องอยู่ ยังไม่พร้อมใช้', 'Engine check. Not ready.', 'th'), updatedAt: Date.now() - 50 * 60000 }
+    ],
+    pins: [
+      { id: uid('pin'), lat: 13.7316, lng: 100.7776, severity: 'critical', title: bi('สายไฟแช่น้ำหน้าตึกวิศวกรรม', 'Live cable in water outside Engineering', 'th'), detail: bi('ห้ามเดินลุยน้ำช่วงนี้ จนกว่าช่างจะตัดไฟ', 'Do not wade here until maintenance isolates power.', 'th'), createdAt: Date.now() - 40 * 60000 },
+      { id: uid('pin'), lat: 13.7278, lng: 100.7759, severity: 'warning', title: bi('เสาไฟเอนข้างทางเดินหอพัก', 'Leaning lamp post by the dorm walkway', 'th'), detail: bi('เดินอ้อมด้านใน อย่าจับเสา', 'Walk on the inner side. Do not touch the post.', 'th'), createdAt: Date.now() - 70 * 60000 },
+      { id: uid('pin'), lat: 13.7294, lng: 100.7768, severity: 'critical', title: bi('ปลั๊กพื้นเปียกโรงอาหาร', 'Wet floor sockets at the canteen', 'th'), detail: bi('อย่าเสียบปลั๊กหรือยืนในน้ำช่วงนี้', 'Do not plug anything in or stand in the water.', 'th'), createdAt: Date.now() - 25 * 60000 }
+    ],
+    leaks: [
+      { id: uid('leak'), room: '1-109', building: '1', floor: 1, phone: '0812345678', severity: 'high', desc: bi('น้ำซึมจากเพดานมุมห้อง มองเห็นหยดต่อเนื่อง', 'Water dripping from the ceiling corner.', 'th'), reporter: 'อารยา วงศ์สุวรรณ', createdAt: Date.now() - 35 * 60000, resolved: false },
+      { id: uid('leak'), room: '9-414', building: '9', floor: 4, phone: '0891234567', severity: 'medium', desc: bi('น้ำนองพื้นห้องน้ำ ระบายไม่ทัน', 'Bathroom floor is flooding. Drain is slow.', 'th'), reporter: 'มินตรา ศรีสุข', createdAt: Date.now() - 80 * 60000, resolved: false },
+      { id: uid('leak'), room: '12-201', building: '12', floor: 2, phone: '0861112233', severity: 'low', desc: bi('ซีลหน้าต่างซึมเล็กน้อย', 'Window seal weeping slightly.', 'en'), reporter: 'Ken Okada', createdAt: Date.now() - 5 * 3600000, resolved: true }
+    ],
+    utilityReports: [
+      { id: uid('util'), room: '1-110', building: '1', floor: 1, phone: '0812345678', water: 'flowing', power: 'on', color: 'yellow', note: bi('น้ำก๊อกเหลืองเล็กน้อยตั้งแต่บ่าย', 'Tap water has been slightly yellow since afternoon.', 'th'), name: 'อารยา วงศ์สุวรรณ', createdAt: Date.now() - 50 * 60000 }
+    ],
+    utility: {
+      water: 'flowing',
+      power: 'on',
+      color: 'yellow',
+      note: bi('น้ำประปายังไหล แต่สีเหลืองอ่อน ให้ใช้ดื่มจากน้ำขวด', 'Tap water is running but slightly yellow. Drink bottled water.', 'th'),
+      updatedAt: Date.now() - 45 * 60000,
+      updatedBy: 'วิชัย รักษ์หอ'
+    },
+    news: [
+      { id: uid('news'), tag: 'urgent', pinned: true, title: bi('ระดับน้ำหน้าหอสูงขึ้น หลีกเลี่ยงชั้น 1 หลัง 22:00', 'Water outside the dorm is rising. Avoid floor 1 after 22:00', 'th'), body: bi('หากอยู่ในชั้น 1 ให้ยกของขึ้นที่สูง และฟังสัญญาณเตือนรายชั้น เจ้าหน้าที่จะประกาศซ้ำหากต้องย้าย', 'If you are on floor 1, lift belongings and listen for floor alarms. Staff will repeat the alert if a move is required.', 'th'), author: 'วิชัย รักษ์หอ', createdAt: Date.now() - 55 * 60000 },
+      { id: uid('news'), tag: 'warning', pinned: false, title: bi('รถรับส่งล่าช้าเพราะน้ำขังถนนฉลองกรุง', 'Shuttle delayed by flooding on Chalong Krung Road', 'th'), body: bi('เที่ยวที่กำลังจะออกช้าประมาณ 15 นาที ดูสถานะล่าสุดในหน้ารถรับส่ง', 'The next departure is about 15 minutes late. Check the shuttle page for the live status.', 'th'), author: 'วิชัย รักษ์หอ', createdAt: Date.now() - 30 * 60000 },
+      { id: uid('news'), tag: 'info', pinned: false, title: bi('จุดรับอาหารอยู่ลานหน้าหอ A', 'Food pickup is the court in front of Dorm A', 'th'), body: bi('เมื่อขึ้นสถานะว่าอาหารมาถึงแล้ว ให้มารับพร้อมบอกเลขห้อง', 'When the status says food has arrived, collect it and give your room number.', 'th'), author: 'วิชัย รักษ์หอ', createdAt: Date.now() - 2 * 3600000 },
+      { id: uid('news'), tag: 'info', pinned: false, title: bi('นักศึกษาต่างชาติ: สลับภาษา TH/EN ได้ที่แถบบน', 'International students: use the TH / EN switch in the top bar', 'en'), body: bi('ประกาศที่เจ้าหน้าที่กรอกสองภาษาจะโชว์คำแปล และคงข้อความต้นฉบับไว้ใต้เสมอ', 'Posts written in both languages show a translation and keep the original text underneath.', 'en'), author: 'International dorm desk', createdAt: Date.now() - 4 * 3600000 }
+    ],
+    alarms: [
+      {
+        id: 'alarm-sample-sos',
+        kind: 'sos',
+        level: 'critical',
+        sosType: 'snake',
+        room: '2-510',
+        building: '2',
+        floor: 5,
+        phone: '0890001122',
+        note: bi('งูตัวเล็กอยู่ตรงมุมห้องน้ำ ยังไม่เข้าใกล้', 'Small snake in the bathroom corner. Staying back.', 'th'),
+        reporterName: 'มินตรา ศรีสุข',
+        reporterId: 'stu-mintra',
+        createdAt: Date.now() - 8 * 60000,
+        resolved: false,
+        acks: []
+      },
+      {
+        id: 'alarm-sample-floor1',
+        kind: 'broadcast',
+        level: 'critical',
+        floors: ['1'],
+        title: bi('น้ำท่วมชั้น 1 กลางดึก', '1st floor flooding late night', 'th'),
+        body: bi('น้ำเริ่มเข้าทางเดินชั้น 1 ให้ขึ้นชั้น 2 และอย่าใช้ปลั๊กใกล้พื้น จนกว่าเจ้าหน้าที่จะปิดสัญญาณ', 'Water is entering the floor 1 corridor. Move up to floor 2 and do not use sockets near the floor until staff clear this alarm.', 'th'),
+        author: 'วิชัย รักษ์หอ',
+        createdAt: Date.now() - 25 * 60000,
+        resolved: false,
+        acks: []
+      },
+      {
+        id: 'alarm-sample-old',
+        kind: 'broadcast',
+        level: 'warning',
+        floors: ['2'],
+        title: bi('ทดสอบไซเรนชั้น 2 เมื่อเช้า', 'Floor 2 siren test this morning', 'th'),
+        body: bi('เป็นการทดสอบ ไม่ต้องอพยพ', 'This was a test. No evacuation.', 'th'),
+        author: 'วิชัย รักษ์หอ',
+        createdAt: Date.now() - 6 * 3600000,
+        resolved: true,
+        acks: []
+      }
+    ],
+    waterLevel: {
+      status: 'caution',
+      cm: 38,
+      note: bi('น้ำอยู่ที่ขอบทางเดินหน้าประตูหอ ยังไม่ท่วมบันได', 'Water is at the walkway edge by the dorm gate. Stairs are still clear.', 'th'),
+      streamUrl: '',
+      updatedAt: Date.now() - 15 * 60000,
+      updatedBy: 'วิชัย รักษ์หอ'
+    }
+  };
+}
+
+function normalize(data) {
+  const d = data && typeof data === 'object' ? data : {};
+  d.schema = 1;
+  d.rev = d.rev || 0;
+  d.shuttles = Array.isArray(d.shuttles) ? d.shuttles : [];
+  d.foodRounds = Array.isArray(d.foodRounds) ? d.foodRounds : [];
+  d.foodOrders = Array.isArray(d.foodOrders) ? d.foodOrders : [];
+  d.boats = Array.isArray(d.boats) ? d.boats : [];
+  d.boats.forEach(function (b) {
+    b.capacity = BOAT_CAP;
+    b.bookings = Array.isArray(b.bookings) ? b.bookings : [];
+    if (b.status === 'maintenance') return;
+    b.status = boatOccupied(b) > 0 ? 'full' : 'available';
+  });
+  d.pins = Array.isArray(d.pins) ? d.pins : [];
+  ensureSensors(d);
+  d.pins.forEach(function (p) {
+    if (isFinite(Number(p.lat)) && isFinite(Number(p.lng))) {
+      p.lat = Number(p.lat);
+      p.lng = Number(p.lng);
+      return;
+    }
+    const x = Number(p.x);
+    const y = Number(p.y);
+    if (isFinite(x) && isFinite(y)) {
+      p.lat = Math.round((13.7336 - (y / 100) * 0.0074) * 1e6) / 1e6;
+      p.lng = Math.round((100.7722 + (x / 100) * 0.0122) * 1e6) / 1e6;
+    } else {
+      p.lat = CAMPUS_LAT;
+      p.lng = CAMPUS_LNG;
+    }
+  });
+  d.leaks = Array.isArray(d.leaks) ? d.leaks : [];
+  d.utilityReports = Array.isArray(d.utilityReports) ? d.utilityReports : [];
+  d.news = Array.isArray(d.news) ? d.news : [];
+  d.alarms = Array.isArray(d.alarms) ? d.alarms : [];
+  if (!d.utility) {
+    d.utility = { water: 'flowing', power: 'on', color: 'clear', note: bi('', '', 'th'), updatedAt: Date.now(), updatedBy: '' };
+  }
+  if (!d.waterLevel) {
+    d.waterLevel = { status: 'normal', cm: 0, note: bi('', '', 'th'), streamUrl: '', updatedAt: Date.now(), updatedBy: '' };
+  }
+  return d;
+}
+
+/* Food rounds and menu rows disappear 24h after the scheduled deadline (or creation). */
+function purgeExpired(data) {
+  let expired = false;
+  const now = Date.now();
+  const before = data.foodRounds.length;
+  data.foodRounds = data.foodRounds.filter(function (r) {
+    const basis = r.deadline || r.createdAt || now;
+    return now - basis < DAY;
+  });
+  if (data.foodRounds.length !== before) expired = true;
+  data.foodRounds.forEach(function (r) {
+    const n = (r.menu || []).length;
+    r.menu = (r.menu || []).filter(function (m) {
+      return now - (m.createdAt || r.createdAt || now) < DAY;
+    });
+    if (r.menu.length !== n) expired = true;
+  });
+  const ids = {};
+  data.foodRounds.forEach(function (r) { ids[r.id] = true; });
+  data.foodOrders = data.foodOrders.filter(function (o) { return ids[o.roundId]; });
+  return expired;
+}
+
+function loadPref() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+    if (!raw) {
+      state.lang = (navigator.language || '').toLowerCase().indexOf('en') === 0 ? 'en' : 'th';
+      return;
+    }
+    if (raw.lang === 'en' || raw.lang === 'th') state.lang = raw.lang;
+    state.local.firebaseConfig = raw.firebaseConfig || null;
+    state.local.adminCode = raw.adminCode || DEFAULT_ADMIN_CODE;
+    state.local.sound = raw.sound !== false;
+    state.local.setupSeen = !!raw.setupSeen;
+  } catch (e) {
+    state.lang = 'th';
+  }
+}
+function savePref() {
+  localStorage.setItem(PREF_KEY, JSON.stringify({
+    lang: state.lang,
+    firebaseConfig: state.local.firebaseConfig,
+    adminCode: state.local.adminCode,
+    sound: state.local.sound,
+    setupSeen: state.local.setupSeen
+  }));
+}
+function saveData() {
+  localStorage.setItem(DATA_KEY, JSON.stringify(state.data));
+}
+function loadData() {
+  try {
+    const raw = localStorage.getItem(DATA_KEY);
+    state.data = normalize(raw ? JSON.parse(raw) : seed());
+  } catch (e) {
+    state.data = seed();
+  }
+  if (purgeExpired(state.data)) saveData();
+  else if (!localStorage.getItem(DATA_KEY)) saveData();
+}
+function saveSession() {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+    user: state.user,
+    dismissedArrival: state.session.dismissedArrival
+  }));
+}
+function loadSession() {
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+    if (!raw) return;
+    state.user = raw.user || null;
+    state.session.dismissedArrival = raw.dismissedArrival || {};
+  } catch (e) { /* fresh session */ }
+}
+
+function toast(th, en) {
+  const el = document.getElementById('toast');
+  el.textContent = en ? t(th, en) : th;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove('show'); }, 3400);
+}
+
+function mutate(fn) {
+  fn(state.data);
+  const expired = purgeExpired(state.data);
+  state.data.rev = Date.now();
+  saveData();
+  schedulePush();
+  state.session.keepScroll = true;
+  render();
+  scanAlarms();
+  if (expired) toast('รายการอาหารที่เกิน 24 ชั่วโมงหลังกำหนดถูกนำออกแล้ว', 'Food posts more than 24 hours past their deadline were removed.');
+}
+
+function schedulePush() {
+  if (!db || applyingRemote) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushRemote, 280);
+}
+async function pushRemote() {
+  if (!db || applyingRemote) return;
+  try {
+    const payload = JSON.parse(JSON.stringify(state.data));
+    await db.collection('kmitlDormAlert').doc('live').set({ rev: payload.rev, payload: payload });
+    state.sync.error = '';
+  } catch (err) {
+    state.sync.error = err.message || String(err);
+    toastRaw(t('ยังซิงก์ขึ้น Firebase ไม่ได้', 'Could not sync to Firebase') + ' — ' + state.sync.error);
+    renderChrome();
+  }
+}
+function toastRaw(msg) { toast(msg, msg); }
+
+function loadFirebaseSdk() {
+  if (window.firebase && firebase.firestore) return Promise.resolve();
+  const urls = [
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
+    'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'
+  ];
+  return urls.reduce(function (chain, url) {
+    return chain.then(function () {
+      return new Promise(function (resolve, reject) {
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = function () { reject(new Error('Firebase SDK failed to load')); };
+        document.head.appendChild(s);
+      });
+    });
+  }, Promise.resolve());
+}
+
+async function connectFirebase(config, opts) {
+  opts = opts || {};
+  try {
+    await loadFirebaseSdk();
+    if (unsub) { unsub(); unsub = null; }
+    if (firebase.apps && firebase.apps.length) await firebase.app().delete();
+    firebase.initializeApp(config);
+    db = firebase.firestore();
+    try {
+      await firebase.auth().signInAnonymously();
+      state.sync.authWarning = false;
+    } catch (authErr) {
+      state.sync.authWarning = true;
+    }
+    state.local.firebaseConfig = {
+      apiKey: config.apiKey,
+      authDomain: config.authDomain,
+      projectId: config.projectId,
+      storageBucket: config.storageBucket || '',
+      messagingSenderId: config.messagingSenderId || '',
+      appId: config.appId
+    };
+    state.sync.mode = 'live';
+    state.sync.error = '';
+    savePref();
+    unsub = db.collection('kmitlDormAlert').doc('live').onSnapshot(function (snap) {
+      if (!snap.exists) {
+        schedulePush();
+        return;
+      }
+      const remote = snap.data() || {};
+      if (remote.rev && remote.rev === state.data.rev) return;
+      applyingRemote = true;
+      state.data = normalize(remote.payload || {});
+      state.data.rev = remote.rev || state.data.rev;
+      const expired = purgeExpired(state.data);
+      saveData();
+      applyingRemote = false;
+      render();
+      scanAlarms();
+      if (expired) schedulePush();
+    }, function (err) {
+      state.sync.error = err.message || String(err);
+      renderChrome();
+    });
+    if (!opts.silent) toast('เชื่อมต่อ Firebase แล้ว ข้อมูลจะซิงก์ร่วมกัน', 'Firebase connected. Data now syncs live.');
+    render();
+    return true;
+  } catch (err) {
+    state.sync.mode = 'demo';
+    state.sync.error = err.message || String(err);
+    db = null;
+    if (!opts.silent) toastRaw(state.sync.error);
+    render();
+    return false;
+  }
+}
+
+async function disconnectFirebase() {
+  if (unsub) { unsub(); unsub = null; }
+  db = null;
+  state.sync.mode = 'demo';
+  state.sync.error = '';
+  state.local.firebaseConfig = null;
+  savePref();
+  try {
+    if (window.firebase && firebase.apps && firebase.apps.length) await firebase.app().delete();
+  } catch (e) { /* already gone */ }
+  toast('กลับสู่โหมดทดลองบนเครื่องนี้แล้ว', 'Back to on-device demo mode.');
+  render();
+}
+
+function ensureAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return false;
+  if (!audioCtx) audioCtx = new AC();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx.state === 'running';
+}
+function tone(freq, dur, type, when, gain) {
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(gain, when);
+  g.gain.exponentialRampToValueAtTime(0.001, when + dur);
+  o.connect(g);
+  g.connect(audioCtx.destination);
+  o.start(when);
+  o.stop(when + dur + 0.02);
+}
+function beep(kind) {
+  if (!state.local.sound) return false;
+  try {
+    if (!ensureAudio()) return false;
+    const t0 = audioCtx.currentTime + 0.02;
+    if (kind === 'critical') {
+      for (let i = 0; i < 4; i++) {
+        tone(880, 0.16, 'square', t0 + i * 0.28, 0.04);
+        tone(620, 0.16, 'square', t0 + i * 0.28 + 0.1, 0.035);
+      }
+    } else if (kind === 'warn') {
+      tone(740, 0.18, 'sine', t0, 0.05);
+      tone(520, 0.22, 'sine', t0 + 0.2, 0.045);
+    } else {
+      tone(523, 0.1, 'sine', t0, 0.035);
+      tone(784, 0.14, 'sine', t0 + 0.12, 0.03);
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function pendingAlarms() {
+  if (!state.user) return [];
+  const alarms = state.data.alarms || [];
+  if (isAdmin()) {
+    return alarms.filter(function (a) { return a.kind === 'sos' && !a.resolved; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+  }
+  const floor = String(state.user.floor || '');
+  return alarms.filter(function (a) {
+    if (a.kind !== 'broadcast' || a.resolved) return false;
+    const floors = a.floors || [];
+    const hit = floors.indexOf('all') >= 0 || floors.indexOf(floor) >= 0;
+    const acked = (a.acks || []).indexOf(state.user.id) >= 0;
+    return hit && !acked;
+  }).sort(function (a, b) { return b.createdAt - a.createdAt; });
+}
+
+function scanAlarms() {
+  const pending = pendingAlarms();
+  const newest = pending[0];
+  if (newest && !state.session.heard[newest.id]) {
+    state.session.heard[newest.id] = true;
+    state.session.needSoundTap = !beep(newest.level === 'critical' ? 'critical' : 'warn');
+    if (state.session.modal) {
+      state.session.modal = null;
+      state.session.skipModalCapture = true;
+    }
+    const live = document.getElementById('liveStatus');
+    if (live) live.textContent = tx(newest.title || newest.note || newest.sosType);
+    render();
+    return;
+  }
+  renderAlarmOverlay(pending);
+}
+
+function primeArrivals() {
+  (state.data.foodRounds || []).forEach(function (r) {
+    if (r.arrivedAt) state.session.heardArrival[r.id] = true;
+  });
+}
+function scanArrivals() {
+  let played = false;
+  (state.data.foodRounds || []).forEach(function (r) {
+    if (r.arrivedAt && !state.session.heardArrival[r.id]) {
+      state.session.heardArrival[r.id] = true;
+      played = true;
+    }
+  });
+  if (played && state.user) beep('info');
+}
+
+async function loadWeather() {
+  state.weather = { loading: true };
+  paintWeather();
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=13.7275&longitude=100.778&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=precipitation_probability_max&timezone=Asia%2FBangkok&forecast_days=1';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('weather');
+    const j = await res.json();
+    state.weather = {
+      ok: true,
+      sample: false,
+      temp: Math.round(j.current.temperature_2m),
+      humidity: Math.round(j.current.relative_humidity_2m),
+      wind: Math.round(j.current.wind_speed_10m),
+      code: j.current.weather_code,
+      pop: j.daily && j.daily.precipitation_probability_max ? j.daily.precipitation_probability_max[0] : null
+    };
+  } catch (e) {
+    state.weather = { ok: false, sample: true, temp: 31, humidity: 74, wind: 14, code: 80, pop: 70 };
+  }
+  paintWeather();
+}
+
+function statusLabel(kind, value) {
+  const map = {
+    shuttle: {
+      scheduled: ['ตามเวลา', 'Scheduled', 'badge-sky'],
+      soon: ['ใกล้เวลาออก', 'Departing soon', 'badge-sky'],
+      boarding: ['กำลังรับขึ้น', 'Boarding', 'badge-amber'],
+      delayed: ['ล่าช้า', 'Delayed', 'badge-amber'],
+      departed: ['ออกแล้ว', 'Departed', 'badge-slate'],
+      passed: ['เลยเวลา รอยืนยัน', 'Overdue · unconfirmed', 'badge-amber'],
+      cancelled: ['ยกเลิก', 'Cancelled', 'badge-red']
+    },
+    boat: {
+      available: ['ว่าง', 'Available', 'badge-green'],
+      'in-use': ['กำลังใช้งาน', 'In use', 'badge-amber'],
+      full: ['เต็ม / กำลังใช้งาน', 'Full / In use', 'badge-red'],
+      maintenance: ['ซ่อม', 'Maintenance', 'badge-slate']
+    },
+    order: {
+      pending: ['รอทำ', 'Pending', 'badge-slate'],
+      preparing: ['กำลังจัด', 'Preparing', 'badge-sky'],
+      arrived: ['มาถึงแล้ว', 'Arrived', 'badge-green']
+    },
+    leak: {
+      low: ['เล็กน้อย', 'Low', 'badge-sky'],
+      medium: ['ปานกลาง', 'Medium', 'badge-amber'],
+      high: ['รุนแรง', 'High', 'badge-red']
+    },
+    waterLv: {
+      normal: ['ปกติ', 'Normal', 'badge-green'],
+      caution: ['เฝ้าระวัง', 'Caution', 'badge-amber'],
+      critical: ['วิกฤต', 'Critical', 'badge-red']
+    },
+    water: {
+      flowing: ['น้ำไหล', 'Water on', 'badge-green'],
+      low: ['น้ำน้อย', 'Low pressure', 'badge-amber'],
+      out: ['น้ำไม่ไหล', 'No water', 'badge-red']
+    },
+    power: {
+      on: ['ไฟปกติ', 'Power on', 'badge-green'],
+      partial: ['ไฟบางส่วน', 'Partial power', 'badge-amber'],
+      out: ['ไฟดับ', 'Power out', 'badge-red']
+    },
+    color: {
+      clear: ['น้ำใส', 'Clear', 'badge-sky'],
+      yellow: ['น้ำเหลือง', 'Yellow', 'badge-amber'],
+      brown: ['น้ำน้ำตาล', 'Brown', 'badge-amber'],
+      rust: ['น้ำสนิม', 'Rusty', 'badge-red']
+    },
+    news: {
+      info: ['ข่าว', 'Info', 'badge-sky'],
+      warning: ['เตือน', 'Warning', 'badge-amber'],
+      urgent: ['ด่วน', 'Urgent', 'badge-red']
+    }
+  };
+  const row = (map[kind] && map[kind][value]) || ['—', '—', 'badge-slate'];
+  return { text: t(row[0], row[1]), cls: row[2] };
+}
+function badge(kind, value) {
+  const s = statusLabel(kind, value);
+  return '<span class="badge ' + s.cls + '">' + esc(s.text) + '</span>';
+}
+
+function shuttlePhase(s) {
+  if (['cancelled', 'delayed', 'boarding', 'departed'].indexOf(s.status) >= 0) return s.status;
+  const now = bkkMinutes();
+  const at = toMin(s.time);
+  if (s.status === 'scheduled' && now > at + 10) return 'passed';
+  if (s.status === 'scheduled' && at - now <= 15 && at - now >= -2) return 'soon';
+  return s.status || 'scheduled';
+}
+
+function activeRounds() {
+  return (state.data.foodRounds || []).slice().sort(function (a, b) {
+    const score = function (r) { return r.status === 'open' ? 0 : (r.arrivedAt ? 1 : 2); };
+    if (score(a) !== score(b)) return score(a) - score(b);
+    return (a.deadline || 0) - (b.deadline || 0);
+  });
+}
+
+function head(title, sub, action) {
+  return '<header class="mb-4"><div class="flex items-start justify-between gap-3"><div><h1 class="text-2xl font-semibold tracking-tight">' +
+    esc(title) + '</h1>' + (sub ? '<p class="mt-1 text-sm text-slate-500">' + esc(sub) + '</p>' : '') +
+    '</div>' + (action || '') + '</div></header>';
+}
+
+function arrivalHtml() {
+  const rows = (state.data.foodRounds || []).filter(function (r) {
+    return r.arrivedAt && !state.session.dismissedArrival[r.id];
+  });
+  if (!rows.length) return '';
+  return rows.map(function (r) {
+    return '<div class="arrival mb-3" role="status"><div>' +
+      '<div class="text-sm font-semibold">' + esc(t('ข้าวมาถึงแล้ว', 'Food arrived')) + '</div>' +
+      textBlock(r.title, { main: 'font-semibold' }) +
+      '<div class="text-xs mt-1">' + esc(t('รับที่ลานหน้าหอ A', 'Pick up at the Dorm A court')) + ' · ' + esc(formatWhen(r.arrivedAt)) + '</div>' +
+      '</div><button type="button" class="btn btn-ghost btn-sm" data-act="dismiss-arrival" data-id="' + esc(r.id) + '">' +
+      esc(t('ปิด', 'Dismiss')) + '</button></div>';
+  }).join('');
+}
+
+function renderSimCctv() {
+  const w = state.data.waterLevel || {};
+  const cm = Number(w.cm) || 0;
+  let height = Math.max(12, Math.min(78, cm / 80 * 70));
+  if (w.status === 'critical') height = Math.max(height, 58);
+  else if (w.status === 'caution') height = Math.max(height, 34);
+  const label = statusLabel('waterLv', w.status || 'normal');
+  return '<div class="cctv" aria-label="' + esc(t('ภาพจำลองกล้องหน้าหอ', 'Simulated dorm-gate camera')) + '">' +
+    '<div class="cctv-sky"></div><div class="cctv-skyline"></div><div class="cctv-gate"></div><div class="cctv-ground"></div>' +
+    '<div class="cctv-water" style="height:' + height + '%"></div><div class="cctv-scan"></div>' +
+    '<div class="cctv-tag"><span class="rec-dot"></span> REC · CAM-GATE</div>' +
+    '<div class="cctv-time" data-clock>—</div>' +
+    '<div class="sim-flag">SIMULATED</div>' +
+    '<div class="cctv-gauge"><span>' + esc(label.text) + '</span><b>' + esc(String(cm)) + ' cm</b></div></div>';
+}
+function renderStream() {
+  const raw = (state.data.waterLevel && state.data.waterLevel.streamUrl) || '';
+  const trimmed = String(raw).trim();
+  if (/^rtsp:/i.test(trimmed)) {
+    return '<div class="card p-3 mb-2 text-sm text-amber-800 bg-amber-50 border-amber-200">' +
+      esc(t('เบราว์เซอร์เปิด RTSP โดยตรงไม่ได้ ให้นำสัญญาณไปแปลงเป็น HLS (.m3u8), MP4 หรือ YouTube Live แล้ววางลิงก์นั้น', 'Browsers cannot play RTSP directly. Restream the camera to HLS (.m3u8), MP4, or YouTube Live and paste that URL.')) +
+      '</div>' + renderSimCctv();
+  }
+  const safe = safeHttpUrl(trimmed);
+  if (!safe) return renderSimCctv();
+  if (/\.(m3u8|mp4)(\?|$)/i.test(safe)) {
+    return '<div class="cctv"><video class="cctv-video" controls playsinline src="' + esc(safe) + '"></video></div>';
+  }
+  const yt = safe.match(/(?:youtube\.com\/(?:watch\?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+  const src = yt ? ('https://www.youtube-nocookie.com/embed/' + yt[1] + '?rel=0') : safe;
+  return '<div class="cctv"><iframe class="cctv-video" title="' + esc(t('ภาพระดับน้ำหน้าหอ', 'Front-of-dorm water level')) + '" src="' + esc(src) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+}
+
+function weatherCardHtml() {
+  const w = state.weather;
+  if (!w || w.loading) {
+    return '<div class="card p-4" id="weatherCard"><div class="text-sm text-slate-500">' + esc(t('กำลังโหลดอากาศลาดกระบัง…', 'Loading Ladkrabang weather…')) + '</div></div>';
+  }
+  const meta = weatherMeta(w.code);
+  const source = w.sample
+    ? t('ข้อมูลตัวอย่าง · ลาดกระบัง (ยังโหลดสดไม่ได้)', 'Sample data · Ladkrabang (live feed unavailable)')
+    : 'Open-Meteo · Lat Krabang';
+  return '<div class="card p-4" id="weatherCard"><div class="flex items-start justify-between gap-3"><div><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' +
+    esc(t('สภาพอากาศ', 'Weather')) + '</div><div class="mt-1 text-3xl font-semibold tabular-nums">' + esc(w.temp) + '°</div><div class="text-sm font-medium">' +
+    esc(t(meta.th, meta.en)) + '</div><div class="mt-1 text-xs text-slate-400">' + esc(source) + '</div></div><div class="text-sky-600">' +
+    icon(meta.name) + '</div></div><dl class="mt-3 grid grid-cols-3 gap-2 text-center"><div class="rounded-xl bg-slate-50 px-2 py-2"><dt class="text-[11px] text-slate-400">' +
+    esc(t('โอกาสฝน', 'Rain')) + '</dt><dd class="font-semibold tabular-nums">' + (w.pop == null ? '—' : esc(w.pop) + '%') + '</dd></div><div class="rounded-xl bg-slate-50 px-2 py-2"><dt class="text-[11px] text-slate-400">' +
+    esc(t('ความชื้น', 'Humidity')) + '</dt><dd class="font-semibold tabular-nums">' + esc(w.humidity) + '%</dd></div><div class="rounded-xl bg-slate-50 px-2 py-2"><dt class="text-[11px] text-slate-400">' +
+    esc(t('ลม', 'Wind')) + '</dt><dd class="font-semibold tabular-nums">' + esc(w.wind) + '</dd></div></dl></div>';
+}
+function paintWeather() {
+  const el = document.getElementById('weatherCard');
+  if (!el) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = weatherCardHtml();
+  el.replaceWith(wrap.firstChild);
+}
+
+function adviceForWater() {
+  const s = (state.data.waterLevel && state.data.waterLevel.status) || 'normal';
+  if (s === 'critical') return t('งดลงชั้น 1 และทางเดินที่มีไฟรั่ว รอประกาศจากเจ้าหน้าที่', 'Stay off floor 1 and any walkway with an electrical-leak pin. Wait for staff.');
+  if (s === 'caution') return t('ลดการเดินชั้นล่าง ใช้เรือเท่าที่จำเป็น และยกของขึ้นที่สูง', 'Limit time on the ground floor, use boats only as needed, and lift belongings.');
+  return t('เดินทางได้ตามปกติ แต่อย่าเดินลุยน้ำใกล้จุดไฟรั่ว', 'Travel as usual, but do not wade near electrical-leak pins.');
+}
+function threatColor() {
+  const s = state.data.waterLevel.status;
+  if (s === 'critical' || state.data.utility.power === 'out' || state.data.utility.water === 'out') return '#dc2626';
+  if (s === 'caution' || state.data.utility.color === 'yellow' || state.data.utility.color === 'brown' || state.data.utility.color === 'rust' || state.data.utility.power === 'partial' || state.data.utility.water === 'low') return '#d97706';
+  return '#ff5400';
+}
+
+function renderHome() {
+  const w = state.data.waterLevel;
+  const boatsFree = state.data.boats.filter(function (b) { return boatLiveStatus(b) === 'available'; });
+  const seats = boatsFree.reduce(function (sum, b) { return sum + boatRemaining(b); }, 0);
+  const openRound = activeRounds().find(function (r) { return r.status === 'open'; });
+  const nextBus = state.data.shuttles.slice().sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
+  const utility = state.data.utility;
+  const news = state.data.news.slice().sort(sortNews).slice(0, 2);
+  const leaks = state.data.leaks.filter(function (l) { return !l.resolved; }).slice(0, 2);
+  return head(t('ภาพรวมหอพัก', 'Dorm overview'), t('ลาดกระบัง · สจล. · ข้อมูลใช้ช่วยตัดสินใจระหว่างน้ำท่วม', 'Lat Krabang · KMITL · decisions during flooding')) +
+    arrivalHtml() +
+    '<section class="card p-4 mb-3" style="border-top:4px solid ' + threatColor() + '"><div class="flex items-start justify-between gap-3"><div><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' +
+    esc(t('ระดับน้ำหน้าหอ', 'Water at the dorm gate')) + '</div><div class="mt-1 flex items-center gap-2">' + badge('waterLv', w.status) +
+    '<span class="text-2xl font-semibold tabular-nums">' + esc(w.cm) + ' cm</span></div>' +
+    textBlock(w.note, { main: 'mt-2 text-sm' }) +
+    '<p class="mt-2 text-sm font-medium text-slate-700">' + esc(adviceForWater()) + '</p></div></div>' +
+    '<p class="mt-2 text-xs text-slate-400">' + esc(t('อัปเดต', 'Updated')) + ' ' + esc(relTime(w.updatedAt)) + (w.updatedBy ? ' · ' + esc(w.updatedBy) : '') + '</p>' +
+    (isAdmin() ? '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="water-edit">' + icon('pencil') + esc(t('ปรับระดับน้ำ / ลิงก์กล้อง', 'Update level / camera URL')) + '</button>' : '') +
+    '</section>' +
+    '<div class="grid gap-3 md:grid-cols-2 mb-3">' + weatherCardHtml() +
+    '<div class="card p-4"><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' + esc(t('คุณอยู่', 'You are on')) + '</div>' +
+    '<div class="mt-1 text-lg font-semibold">' + esc(buildingLabel(state.user.building)) + ' · ' + esc(t('ชั้น', 'Floor')) + ' ' + esc(state.user.floor || '—') + '</div>' +
+    '<p class="text-sm text-slate-500">' + esc(state.user.room || '') + ' · ' + esc(state.user.name || '') + '</p>' +
+    '<p class="mt-2 text-sm text-slate-600">' + esc(t('สัญญาณเตือนรายชั้นจะดังเฉพาะชั้นของคุณ หรือทุกชั้น', 'Floor alarms reach your floor, or every floor when staff choose All.')) + '</p>' +
+    '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="profile-open">' + esc(t('แก้ห้อง / ชั้น', 'Edit room / floor')) + '</button></div></div>' +
+    '<div class="mb-3">' + renderStream() + '</div>' +
+    '<div class="grid gap-3 md:grid-cols-3 mb-3">' +
+    statCard(t('เรือที่จองได้', 'Boats you can book'), String(boatsFree.length), t(seats + ' ที่นั่งเหลือ', seats + ' seats left'), 'transit', 'boats') +
+    statCard(t('สั่งอาหาร', 'Food order'), openRound ? (openRound.startLabel + '–' + openRound.endLabel) : t('ไม่มีรอบเปิด', 'No open round'), openRound ? tx(openRound.title) : t('เปิดรอบได้จากหน้าอาหาร', 'Open one from the food page'), 'food') +
+    statCard(t('น้ำ / ไฟ', 'Water / power'), statusLabel('water', utility.water).text, statusLabel('power', utility.power).text + ' · ' + statusLabel('color', utility.color).text, 'board', 'status') +
+    '</div>' +
+    '<section class="mb-4"><div class="mb-2 flex items-center justify-between"><h2 class="font-semibold">' + esc(t('รถรับส่งวันนี้', 'Shuttles today')) + '</h2>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="go" data-view="transit" data-transit="shuttle">' + esc(t('ดูทั้งหมด', 'See all')) + '</button></div>' +
+    nextBus.slice(0, 3).map(shuttleRow).join('') + '</section>' +
+    '<section class="mb-4"><h2 class="mb-2 font-semibold">' + esc(t('ข่าวล่าสุด', 'Latest news')) + '</h2>' +
+    (news.length ? news.map(newsCard).join('') : '') + '</section>' +
+    (leaks.length ? '<section><h2 class="mb-2 font-semibold">' + esc(t('จุดน้ำรั่วที่ยังไม่ปิด', 'Open room leaks')) + '</h2>' + leaks.map(leakCard).join('') + '</section>' : '');
+}
+
+function statCard(label, value, sub, view, tab) {
+  const attrs = tab === 'boats'
+    ? ' data-view="transit" data-transit="boats"'
+    : (view === 'board' ? ' data-view="board" data-board="status"' : ' data-view="' + view + '"');
+  return '<button type="button" class="card p-4 text-left" data-act="go"' + attrs + '><div class="text-xs font-semibold uppercase tracking-wide text-slate-400">' +
+    esc(label) + '</div><div class="mt-1 text-xl font-semibold">' + esc(value) + '</div><div class="text-sm text-slate-500">' + esc(sub) + '</div></button>';
+}
+
+function shuttleRow(s) {
+  const phase = shuttlePhase(s);
+  return '<article class="card p-3 mb-2"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="text-lg font-semibold tabular-nums">' +
+    esc(s.time) + (s.status === 'delayed' && s.delayMin ? ' <span class="text-sm font-semibold text-amber-700">+' + esc(s.delayMin) + ' ' + esc(t('นาที', 'min')) + '</span>' : '') +
+    '</div>' + textBlock(s.dest, { main: 'font-medium' }) + (tx(s.note) ? textBlock(s.note, { main: 'text-sm text-slate-600 mt-1' }) : '') +
+    '</div><div class="shrink-0">' + badge('shuttle', phase) + '</div></div>' +
+    (isAdmin() ? '<div class="mt-3 flex flex-wrap gap-2">' +
+      statusButtons('shuttle-status', s.id, ['scheduled', 'boarding', 'delayed', 'departed', 'cancelled'], s.status, 'shuttle') +
+      '<button type="button" class="btn btn-ghost btn-sm" data-act="shuttle-edit" data-id="' + esc(s.id) + '">' + icon('pencil') + esc(t('แก้ไข', 'Edit')) + '</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="shuttle" data-id="' + esc(s.id) + '">' + icon('trash') + '</button></div>' : '') +
+    '</article>';
+}
+
+function statusButtons(act, id, values, current, kind) {
+  return values.map(function (v) {
+    const on = v === current;
+    return '<button type="button" class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-ghost') + '" data-act="' + act + '" data-id="' + esc(id) + '" data-status="' + esc(v) + '">' +
+      esc(statusLabel(kind, v).text) + '</button>';
+  }).join('');
+}
+
+function renderTransit() {
+  const tab = state.session.transitTab || 'shuttle';
+  const switcher = '<div class="mb-4 grid grid-cols-2 gap-2"><button type="button" class="btn ' + (tab === 'shuttle' ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="transitTab" data-val="shuttle">' +
+    icon('bus') + esc(t('รถรับส่ง', 'Shuttle')) + '</button><button type="button" class="btn ' + (tab === 'boats' ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="transitTab" data-val="boats">' +
+    icon('boat') + esc(t('เรือในหอ', 'Dorm boats')) + '</button></div>';
+  if (tab === 'boats') return renderBoats(switcher);
+  const rows = state.data.shuttles.slice().sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
+  const alerts = rows.filter(function (s) {
+    const p = shuttlePhase(s);
+    return p === 'delayed' || p === 'boarding' || p === 'soon' || p === 'cancelled' || p === 'passed';
+  });
+  return head(t('รถรับส่ง', 'Shuttle bus'), isAdmin()
+    ? t('ปรับเวลา เส้นทาง และสถานะได้ทันที ผู้ใช้ทุกคนจะเห็นพร้อมกัน', 'Edit times, routes, and live status. Everyone sees the same board.')
+    : t('ดูเวลาออกและสถานะล่าสุด เจ้าหน้าที่หอเป็นคนปรับตาราง', 'Live departures. Dorm staff update the board.')) +
+    switcher +
+    (alerts.length ? '<div class="card p-3 mb-3 border-amber-200 bg-amber-50"><div class="text-sm font-semibold text-amber-800 mb-2">' + esc(t('สถานะที่ต้องรู้ตอนนี้', 'Status that needs attention')) + '</div>' +
+      alerts.map(function (s) { return '<div class="flex items-center justify-between gap-2 py-1 text-sm"><span class="font-semibold tabular-nums">' + esc(s.time) + ' · ' + esc(tx(s.dest)) + '</span>' + badge('shuttle', shuttlePhase(s)) + '</div>'; }).join('') +
+      '</div>' : '') +
+    (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="shuttle-edit">' + icon('plus') + esc(t('เพิ่มเที่ยวรถ', 'Add a shuttle')) + '</button>' : '') +
+    rows.map(shuttleRow).join('');
+}
+
+function renderBoats(switcher) {
+  const open = state.data.boats.filter(function (b) { return boatLiveStatus(b) === 'available'; });
+  const seats = open.reduce(function (sum, b) { return sum + boatRemaining(b); }, 0);
+  return head(t('เรือภายในหอ', 'Dorm boats'), isAdmin()
+    ? t('นักศึกษาจองได้ลำละไม่เกิน 4 คน เมื่อเต็มระบบจะปิดการจองจนกว่าจะรีเซ็ต', 'Students book up to 4 people. A full boat closes until you reset it.')
+    : t('จองได้เฉพาะนักศึกษา กรอกชื่อ เลขห้อง เบอร์โทร และจำนวนผู้โดยสาร 1–4 คน', 'Only students can book. Enter your name, room, phone, and 1–4 passengers.')) +
+    (switcher || '') +
+    '<div class="card p-4 mb-3"><div class="text-sm text-slate-500">' + esc(t('เรือที่ยังรับจอง', 'Boats still open')) + '</div><div class="text-3xl font-semibold">' +
+    esc(open.length) + ' <span class="text-base font-medium text-slate-500">/ ' + esc(state.data.boats.length) + '</span></div><div class="text-sm">' +
+    esc(t('ที่นั่งเหลือรวม', 'Seats left')) + ' ' + esc(seats) + ' · ' + esc(t('สูงสุด 4 คนต่อลำ', '4 people max per boat')) + '</div></div>' +
+    (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="boat-edit">' + icon('plus') + esc(t('เพิ่มเรือ', 'Add a boat')) + '</button>' : '') +
+    state.data.boats.map(function (b) {
+      const occ = boatOccupied(b);
+      const live = boatLiveStatus(b);
+      const dots = Array.from({ length: BOAT_CAP }).map(function (_, i) {
+        return '<span class="seat-dot' + (i < occ ? ' on' : '') + '"></span>';
+      }).join('');
+      const people = (b.bookings || []).map(function (row) {
+        const phone = isAdmin() || (state.user && row.userId === state.user.id) ? ' · ' + esc(row.phone) : '';
+        return '<li class="py-1">' + esc(row.name) + ' · ' + esc(row.room) + phone + ' · ' + esc(row.passengers) + ' ' + esc(t('คน', 'pax')) + '</li>';
+      }).join('');
+      return '<article class="card p-4 mb-2"><div class="flex items-start justify-between gap-3"><div><div class="text-lg font-semibold">' + esc(b.name) + '</div>' +
+        '<div class="text-sm text-slate-600">' + esc(occ) + '/' + BOAT_CAP + ' · ' + esc(t('เหลือ', 'left')) + ' ' + esc(boatRemaining(b)) + '</div>' +
+        '<div class="mt-2">' + dots + '</div>' + textBlock(b.note, { main: 'text-sm mt-2' }) +
+        (people ? '<ul class="mt-2 text-sm text-slate-600">' + people + '</ul>' : '') +
+        '<div class="text-xs text-slate-400 mt-1">' + esc(relTime(b.updatedAt || Date.now())) + '</div></div>' + badge('boat', live) + '</div>' +
+        (boatCanBook(b) ? '<button type="button" class="btn btn-primary btn-block mt-3" data-act="boat-book" data-id="' + esc(b.id) + '">' + esc(t('จองเรือลำนี้', 'Book this boat')) + '</button>' : '') +
+        (isStudent() && !boatCanBook(b) ? '<p class="mt-3 text-sm text-slate-500">' + esc(live === 'maintenance' ? t('ลำนี้ปิดปรับปรุง', 'This boat is under maintenance.') : t('เต็ม / กำลังใช้งาน จองเพิ่มไม่ได้จนกว่าเจ้าหน้าที่จะรีเซ็ต', 'Full / In use. Further booking waits for a staff reset.')) + '</p>' : '') +
+        (isAdmin() ? '<div class="mt-3 flex flex-wrap gap-2"><button type="button" class="btn btn-primary btn-sm" data-act="boat-reset" data-id="' + esc(b.id) + '">' + esc(t('รีเซ็ตที่นั่ง', 'Reset seats')) + '</button>' +
+          statusButtons('boat-status', b.id, ['maintenance'], b.status, 'boat') +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="boat-edit" data-id="' + esc(b.id) + '">' + icon('pencil') + esc(t('แก้ไข', 'Edit')) + '</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="boat" data-id="' + esc(b.id) + '">' + icon('trash') + '</button></div>' : '') +
+        '</article>';
+    }).join('');
+}
+
+function renderFood() {
+  const rounds = activeRounds();
+  const mine = isStudent() ? state.user.id : null;
+  return head(t('ฝากซื้ออาหาร', 'Group food order'), t('รอบและเมนูจะหายไปเอง 24 ชั่วโมงหลังเวลาปิดรับ', 'Rounds and menu items disappear 24 hours after the order deadline.')) +
+    arrivalHtml() +
+    '<button type="button" class="btn btn-primary mb-3" data-act="round-edit">' + icon('plus') + esc(t('เปิดรอบสั่งใหม่', 'Open an order round')) + '</button>' +
+    (rounds.length ? rounds.map(function (r) { return foodCard(r, mine); }).join('') : '<div class="card p-6 text-center text-sm text-slate-500">' + esc(t('ยังไม่มีรอบที่ยังไม่หมดอายุ', 'No active rounds.')) + '</div>');
+}
+function foodCard(r, mine) {
+  const orders = state.data.foodOrders.filter(function (o) { return o.roundId === r.id; });
+  const summary = {};
+  orders.forEach(function (o) {
+    summary[o.itemId] = summary[o.itemId] || { qty: 0 };
+    summary[o.itemId].qty += Number(o.qty) || 0;
+  });
+  const menu = r.menu || [];
+  return '<article class="card p-4 mb-3"><div class="flex items-start justify-between gap-3"><div class="min-w-0">' +
+    textBlock(r.title, { main: 'text-lg font-semibold' }) +
+    '<div class="mt-1 text-sm font-semibold text-sky-700 tabular-nums">' + esc(r.startLabel) + ' – ' + esc(r.endLabel) + '</div>' +
+    textBlock(r.note, { main: 'text-sm text-slate-600 mt-1' }) +
+    '<div class="mt-2 flex flex-wrap gap-2">' + (r.status === 'open' ? '<span class="badge badge-green">' + esc(t('เปิดรับ', 'Open')) + '</span>' : '<span class="badge badge-slate">' + esc(t('ปิดรับ', 'Closed')) + '</span>') +
+    (r.arrivedAt ? '<span class="badge badge-sky">' + esc(t('อาหารมาถึงแล้ว', 'Food arrived')) + '</span>' : '') +
+    '</div><p class="mt-2 text-xs text-slate-400">' + esc(t('หมดอายุอัตโนมัติ', 'Auto-expires')) + ' ' + esc(formatWhen((r.deadline || r.createdAt) + DAY)) + '</p></div></div>' +
+    '<div class="mt-3 flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="round-toggle" data-id="' + esc(r.id) + '">' +
+    esc(r.status === 'open' ? t('ปิดรอบ', 'Close round') : t('เปิดรอบ', 'Open round')) + '</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="round-edit" data-id="' + esc(r.id) + '">' + icon('pencil') + esc(t('แก้ไข', 'Edit')) + '</button>' +
+    '<button type="button" class="btn btn-amber btn-sm" data-act="ask-arrive" data-id="' + esc(r.id) + '">' + esc(t('ข้าวมาถึงแล้ว', 'Food arrived')) + '</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="item-edit" data-round="' + esc(r.id) + '">' + icon('plus') + esc(t('เพิ่มเมนู', 'Add item')) + '</button>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="round" data-id="' + esc(r.id) + '">' + icon('trash') + '</button></div>' +
+    '<ul class="mt-3 divide-y divide-slate-100">' + menu.map(function (m) {
+      return '<li class="py-2 flex items-start justify-between gap-3"><div class="min-w-0">' + textBlock(m.name, { main: 'font-medium' }) +
+        '<div class="text-sm text-slate-500 tabular-nums">฿' + esc(m.price) + (summary[m.id] ? ' · ' + esc(t('สั่งแล้ว', 'ordered')) + ' ' + esc(summary[m.id].qty) : '') + '</div></div>' +
+        '<span class="flex gap-1"><button type="button" class="icon-btn" data-act="item-edit" data-round="' + esc(r.id) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(t('แก้ไขเมนู', 'Edit item')) + '">' + icon('pencil') + '</button>' +
+        '<button type="button" class="icon-btn" data-act="ask-delete" data-kind="item" data-round="' + esc(r.id) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(t('ลบเมนู', 'Delete item')) + '">' + icon('trash') + '</button></span></li>';
+    }).join('') + '</ul>' +
+    (r.status === 'open' ? '<button type="button" class="btn btn-primary btn-block mt-3" data-act="order-add" data-id="' + esc(r.id) + '">' + esc(t('สั่งจากรอบนี้', 'Place an order')) + '</button>' :
+      '<p class="mt-3 text-sm text-slate-500">' + esc(t('รอบนี้ปิดรับแล้ว', 'This round is closed.')) + '</p>') +
+    orderList(orders, menu, mine) + '</article>';
+}
+function orderList(orders, menu, mine) {
+  const rows = mine ? orders.filter(function (o) { return o.userId === mine; }) : orders;
+  if (!rows.length) return '';
+  const title = mine ? t('ออเดอร์ของฉัน', 'My orders') : t('ออเดอร์ทั้งหมด', 'All orders');
+  return '<div class="mt-3"><div class="text-sm font-semibold mb-1">' + esc(title) + '</div>' + rows.slice().sort(function (a, b) { return b.createdAt - a.createdAt; }).map(function (o) {
+    const item = menu.find(function (m) { return m.id === o.itemId; });
+    return '<div class="flex items-start justify-between gap-2 py-2 border-t border-slate-100 text-sm"><div><div class="font-medium">' + esc(item ? tx(item.name) : '—') + ' × ' + esc(o.qty) + '</div>' +
+      '<div class="text-slate-500">' + esc(o.room) + ' · ' + esc(o.name) + (o.note ? ' · ' + esc(o.note) : '') + '</div></div><div class="text-right">' + badge('order', o.status) +
+      (isAdmin() ? '<div class="mt-1">' + statusButtons('order-status', o.id, ['pending', 'preparing', 'arrived'], o.status, 'order') + '</div>' : '') + '</div></div>';
+  }).join('') + '</div>';
+}
+
+function renderCampus() {
+  const sensors = state.data.sensors || [];
+  const leaks = sensors.filter(function (s) { return s.status === 'leak'; });
+  const safe = sensors.length - leaks.length;
+  const selected = findById(sensors, state.session.selectedSensor);
+  const pins = state.data.pins || [];
+  const selectedPin = pins.find(function (p) { return p.id === state.session.selectedPin; });
+  const rows = sensors.slice().sort(function (a, b) {
+    if ((a.status === 'leak') !== (b.status === 'leak')) return a.status === 'leak' ? -1 : 1;
+    return a.id < b.id ? -1 : 1;
+  });
+  return head(t('แผนที่เซนเซอร์ไฟรั่ว สจล.', 'KMITL electrical sensor map'), isAdmin()
+    ? t('จุดตรวจทุก 300 เมตรบนถนนและขอบมหาวิทยาลัย แตะจุดเพื่อสลับสถานะ หรือสั่งสแกนสด', 'Checkpoints every 300m on campus roads and the perimeter. Tap a node to toggle it, or run a live scan.')
+    : t('จุดตรวจทุก 300 เมตร จุดเขียวคือปกติ จุดแดงกระพริบคือพบไฟรั่ว', 'Checkpoints every 300m. Green is safe. A pulsing red marker is an electrical leak.')) +
+    '<div class="card p-2 mb-3"><div id="campusMap" role="region" aria-label="' + esc(t('แผนที่พระจอมเกล้าลาดกระบัง', 'KMITL Ladkrabang map')) + '"></div>' +
+    '<div class="flex flex-wrap gap-3 px-2 py-2 text-xs text-slate-600"><span><i class="legend-dot safe"></i>' + esc(t('ปกติ / Safe', 'Safe / ปกติ')) + '</span><span><i class="legend-dot leak"></i>' + esc(t('พบจุดไฟรั่ว / Leak', 'Electrical leak detected / พบจุดไฟรั่ว')) + '</span></div></div>' +
+    '<p class="mb-3 text-xs text-slate-400">OpenStreetMap · KMITL · ' + CAMPUS_LAT + ', ' + CAMPUS_LNG + ' · ' + esc(t('ข้อมูลเซนเซอร์เป็นการจำลอง', 'Sensor readings are simulated')) + '</p>' +
+    '<div class="grid grid-cols-3 gap-2 mb-3"><div class="card p-3"><div class="text-xs text-slate-500">' + esc(t('เซนเซอร์ทั้งหมด', 'Active sensors')) + '</div><div class="text-2xl font-semibold">' + sensors.length + '</div></div>' +
+    '<div class="card p-3"><div class="text-xs text-slate-500">' + esc(t('โซนปกติ', 'Safe zones')) + '</div><div class="text-2xl font-semibold" style="color:#16A34A">' + safe + '</div></div>' +
+    '<div class="card p-3"><div class="text-xs text-slate-500">' + esc(t('พบไฟรั่ว', 'Leak alerts')) + '</div><div class="text-2xl font-semibold" style="color:#DC2626">' + leaks.length + '</div></div></div>' +
+    (isAdmin() ? '<button type="button" class="btn btn-primary btn-block mb-3" data-act="sensor-scan">' + esc(t('สแกนเซนเซอร์สด', 'Simulate live sensor scan')) + '</button>' : '') +
+    (selected ? '<article class="card p-4 mb-3"><div class="text-xs font-semibold" style="color:#c2410c">' + esc(selected.id) + '</div>' +
+      textBlock(selected.road, { main: 'text-lg font-semibold mt-1' }) +
+      '<p class="text-xs text-slate-500 mt-1">' + esc(t('จุดตรวจทุก 300 เมตร', '300m grid checkpoint')) + '</p>' +
+      '<p class="mt-2 font-semibold" style="color:' + (selected.status === 'leak' ? '#DC2626' : '#16A34A') + '">' + esc(selected.status === 'leak' ? t('พบจุดไฟรั่ว', 'Electrical leak detected') : t('ปกติ / ปลอดภัย', 'Safe')) + '</p>' +
+      '<p class="text-sm mt-1">' + esc(t('กระแสไฟรั่ว', 'Leakage current')) + ' <b>' + Number(selected.leakageMa).toFixed(1) + ' mA</b> · ' + esc(selected.status === 'leak' ? t('อันตราย', 'Danger') : t('ปลอดภัย', 'Safe')) + '</p>' +
+      '<p class="text-sm">' + esc(t('ระดับน้ำ', 'Water level')) + ' <b>' + Math.round(Number(selected.waterCm) || 0) + ' cm</b></p>' +
+      '<div class="text-xs text-slate-400 mt-1">' + esc(t('อัปเดตล่าสุด', 'Last updated')) + ' ' + esc(relTime(selected.updatedAt)) + '</div>' +
+      (isAdmin() ? '<button type="button" class="btn btn-sm mt-3 ' + (selected.status === 'leak' ? 'btn-ghost' : 'btn-danger') + '" data-act="sensor-toggle" data-id="' + esc(selected.id) + '">' + esc(selected.status === 'leak' ? t('จำลองว่าปกติ', 'Simulate safe') : t('จำลองไฟรั่ว', 'Simulate leak')) + '</button>' : '') +
+      '</article>' : '') +
+    '<div class="grid gap-2 mb-4">' + rows.map(function (s) {
+      return '<button type="button" class="card p-3 text-left" data-act="sensor-select" data-id="' + esc(s.id) + '"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-xs font-semibold" style="color:#c2410c">' + esc(s.id) + '</div>' +
+        textBlock(s.road, { main: 'font-semibold' }) + '<div class="text-xs text-slate-500 mt-1">' + Number(s.leakageMa).toFixed(1) + ' mA · ' + Math.round(Number(s.waterCm) || 0) + ' cm</div></div>' +
+        (s.status === 'leak' ? '<span class="badge badge-red">' + esc(t('ไฟรั่ว', 'Leak')) + '</span>' : '<span class="badge" style="background:#dcfce7;color:#166534">' + esc(t('ปกติ', 'Safe')) + '</span>') +
+        '</div></button>';
+    }).join('') + '</div>' +
+    (pins.length ? '<h2 class="text-base font-semibold mb-2">' + esc(t('หมุดเตือนที่เจ้าหน้าที่ปักไว้', 'Staff warning pins')) + '</h2>' +
+      (selectedPin ? '<article class="card p-4 mb-3">' + badge(selectedPin.severity === 'critical' ? 'leak' : 'news', selectedPin.severity === 'critical' ? 'high' : 'warning') +
+        textBlock(selectedPin.title, { main: 'text-lg font-semibold mt-2' }) + textBlock(selectedPin.detail, { main: 'text-sm mt-1' }) +
+        '<div class="text-xs text-slate-400 mt-2">' + esc(relTime(selectedPin.createdAt)) + '</div>' +
+        (isAdmin() ? '<div class="mt-3 flex gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="pin-edit" data-id="' + esc(selectedPin.id) + '">' + icon('pencil') + esc(t('แก้ไข', 'Edit')) + '</button><button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="pin" data-id="' + esc(selectedPin.id) + '">' + icon('trash') + esc(t('ถอนหมุด', 'Remove pin')) + '</button></div>' : '') +
+        '</article>' : '') +
+      '<div class="grid gap-2">' + pins.map(function (p) {
+        return '<button type="button" class="card p-3 text-left" data-act="pin-select" data-id="' + esc(p.id) + '"><div class="flex items-start justify-between gap-2"><div class="min-w-0">' +
+          textBlock(p.title, { main: 'font-semibold' }) + '</div>' + (p.severity === 'critical' ? '<span class="badge badge-red">' + esc(t('อันตราย', 'Critical')) + '</span>' : '<span class="badge badge-amber">' + esc(t('ระวัง', 'Caution')) + '</span>') +
+          '</div></button>';
+      }).join('') + '</div>' : '') +
+    (isAdmin() ? '<p class="mt-3 text-xs text-slate-400">' + esc(t('แตะพื้นที่ว่างบนแผนที่เพื่อปักหมุดเตือนเพิ่ม นอกจากจุดเซนเซอร์', 'Tap an empty part of the map to drop an extra warning pin, besides the sensor nodes.')) + '</p>' : '');
+}
+
+function sortNews(a, b) {
+  if (!!b.pinned - !!a.pinned) return (!!b.pinned - !!a.pinned);
+  return b.createdAt - a.createdAt;
+}
+function newsCard(n) {
+  return '<article class="card p-4 mb-2"><div class="flex items-center gap-2 mb-2">' + badge('news', n.tag || 'info') +
+    (n.pinned ? '<span class="badge badge-slate">' + esc(t('ปักหมุด', 'Pinned')) + '</span>' : '') +
+    '<span class="text-xs text-slate-400">' + esc(relTime(n.createdAt)) + '</span></div>' +
+    textBlock(n.title, { main: 'text-lg font-semibold' }) + textBlock(n.body, { main: 'text-sm mt-2 text-slate-700' }) +
+    '<div class="text-xs text-slate-400 mt-2">' + esc(n.author || '') + '</div>' +
+    (isAdmin() ? '<div class="mt-3 flex gap-2"><button type="button" class="btn btn-ghost btn-sm" data-act="news-edit" data-id="' + esc(n.id) + '">' + icon('pencil') + esc(t('แก้ไข', 'Edit')) + '</button><button type="button" class="btn btn-ghost btn-sm" data-act="ask-delete" data-kind="news" data-id="' + esc(n.id) + '">' + icon('trash') + '</button></div>' : '') +
+    '</article>';
+}
+function leakCard(l) {
+  return '<article class="card p-3 mb-2"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-semibold">' + esc(l.room) + ' · ' + esc(buildingLabel(l.building)) + '</div>' +
+    textBlock(l.desc, { main: 'text-sm mt-1' }) + '<div class="text-xs text-slate-400 mt-1">' + esc(l.reporter || '') + ' · ' + esc(relTime(l.createdAt)) + '</div></div>' +
+    badge('leak', l.severity) + '</div>' +
+    (l.resolved ? '<div class="mt-2 text-xs font-semibold text-green-700">' + esc(t('ปิดงานแล้ว', 'Resolved')) + '</div>' : (isAdmin() ? '<button type="button" class="btn btn-ghost btn-sm mt-2" data-act="leak-resolve" data-id="' + esc(l.id) + '">' + esc(t('ปิดงาน', 'Mark resolved')) + '</button>' : '')) +
+    '</article>';
+}
+
+function renderBoard() {
+  const tab = state.session.boardTab || 'report';
+  const switcher = '<div class="mb-4 grid grid-cols-3 gap-2">' +
+    boardTabBtn('status', t('สถานะ', 'Status'), tab) +
+    boardTabBtn('report', t('แจ้งเหตุ', 'Report'), tab) +
+    boardTabBtn('news', t('ข่าว', 'News'), tab) + '</div>';
+  if (tab === 'news') {
+    const rows = state.data.news.slice().sort(sortNews);
+    return head(t('ข่าวสารหอพัก', 'Dorm news'), t('สลับ TH/EN ได้ตลอด ข้อความต้นฉบับจะอยู่ใต้คำแปล', 'Switch TH/EN any time. Original text stays under the translation.')) +
+      switcher + (isAdmin() ? '<button type="button" class="btn btn-primary mb-3" data-act="news-edit">' + icon('plus') + esc(t('เขียนประกาศ', 'New post')) + '</button>' : '') +
+      (rows.length ? rows.map(newsCard).join('') : '<div class="card p-6 text-sm text-center text-slate-500">' + esc(t('ยังไม่มีประกาศ', 'No posts yet.')) + '</div>');
+  }
+  if (tab === 'status') return renderStatus(switcher);
+  return renderReport(switcher);
+}
+function boardTabBtn(val, label, current) {
+  return '<button type="button" class="btn btn-sm ' + (current === val ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="boardTab" data-val="' + val + '">' + esc(label) + '</button>';
+}
+function renderStatus(switcher) {
+  const u = state.data.utility;
+  const reports = state.data.utilityReports.slice().sort(function (a, b) { return b.createdAt - a.createdAt; });
+  const openLeaks = state.data.leaks.filter(function (l) { return !l.resolved; });
+  const closed = state.data.leaks.filter(function (l) { return l.resolved; });
+  const alarms = (state.data.alarms || []).slice().sort(function (a, b) { return b.createdAt - a.createdAt; });
+  return head(t('สถานะน้ำ ไฟ และสัญญาณ', 'Water, power, and alarms'), t('รายงานจากห้องอยู่ด้านล่าง สถานะทางการถูกยืนยันโดยเจ้าหน้าที่', 'Room reports are listed below. The official line is confirmed by staff.')) +
+    (switcher || '') +
+    '<section class="card p-4 mb-3"><div class="flex flex-wrap gap-2 mb-2">' + badge('water', u.water) + badge('power', u.power) + badge('color', u.color) + '</div>' +
+    textBlock(u.note, { main: 'text-sm' }) +
+    '<div class="text-xs text-slate-400 mt-2">' + esc(t('ยืนยันโดย', 'Confirmed by')) + ' ' + esc(u.updatedBy || '—') + ' · ' + esc(relTime(u.updatedAt)) + '</div>' +
+    (isAdmin() ? '<div class="mt-3"><div class="text-xs font-semibold text-slate-500 mb-1">' + esc(t('ปรับสถานะทางการ', 'Set official status')) + '</div>' +
+      '<div class="flex flex-wrap gap-2 mb-2">' + quickUtil('water', ['flowing', 'low', 'out']) + '</div>' +
+      '<div class="flex flex-wrap gap-2 mb-2">' + quickUtil('power', ['on', 'partial', 'out']) + '</div>' +
+      '<div class="flex flex-wrap gap-2">' + quickUtil('color', ['clear', 'yellow', 'brown', 'rust']) + '</div>' +
+      '<button type="button" class="btn btn-ghost btn-sm mt-3" data-act="utility-note">' + esc(t('แก้หมายเหตุ', 'Edit note')) + '</button></div>' : '') +
+    '</section>' +
+    '<h2 class="font-semibold mb-2">' + esc(t('รายงานจากห้อง', 'Room reports')) + '</h2>' +
+    (reports.length ? reports.map(function (r) {
+      return '<article class="card p-3 mb-2 text-sm"><div class="font-semibold">' + esc(r.room) + ' · ' + esc(buildingLabel(r.building)) + '</div><div class="mt-1 flex flex-wrap gap-1">' +
+        badge('water', r.water) + badge('power', r.power) + badge('color', r.color) + '</div>' +
+        (tx(r.note) ? textBlock(r.note, { main: 'mt-1' }) : '') +
+        '<div class="text-xs text-slate-400 mt-1">' + esc(r.name || '') + ' · ' + esc(relTime(r.createdAt)) + '</div></article>';
+    }).join('') : '<p class="text-sm text-slate-500 mb-3">' + esc(t('ยังไม่มีรายงานจากห้อง', 'No room reports yet.')) + '</p>') +
+    '<h2 class="font-semibold mt-4 mb-2">' + esc(t('จุดน้ำรั่วในห้อง', 'Room leaks')) + '</h2>' +
+    (openLeaks.length ? openLeaks.map(leakCard).join('') : '<p class="text-sm text-slate-500">' + esc(t('ไม่มีจุดรั่วที่เปิดอยู่', 'No open leaks.')) + '</p>') +
+    (closed.length ? '<details class="mt-2"><summary class="text-sm text-slate-500 cursor-pointer">' + esc(t('ปิดงานแล้ว', 'Resolved')) + ' (' + closed.length + ')</summary><div class="mt-2">' + closed.map(leakCard).join('') + '</div></details>' : '') +
+    '<h2 class="font-semibold mt-4 mb-2">' + esc(t('ประวัติสัญญาณ', 'Alarm history')) + '</h2>' +
+    alarms.map(alarmHistoryCard).join('');
+}
+function quickUtil(key, values) {
+  return values.map(function (v) {
+    const on = state.data.utility[key] === v;
+    return '<button type="button" class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-ghost') + '" data-act="utility-set" data-key="' + key + '" data-val="' + v + '">' + esc(statusLabel(key, v).text) + '</button>';
+  }).join('');
+}
+function alarmHistoryCard(a) {
+  const title = a.kind === 'sos'
+    ? (sosLabel(a.sosType) + ' · ' + (a.room || ''))
+    : tx(a.title);
+  const floors = a.kind === 'broadcast' ? ((a.floors || []).indexOf('all') >= 0 ? t('ทุกชั้น', 'All floors') : (t('ชั้น', 'Floor') + ' ' + (a.floors || []).join(', '))) : (t('ชั้น', 'Floor') + ' ' + (a.floor || '—'));
+  return '<article class="card p-3 mb-2"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-xs text-slate-400">' + esc(a.kind === 'sos' ? t('นักศึกษา → เจ้าหน้าที่', 'Student → staff') : t('เจ้าหน้าที่ → ชั้น', 'Staff → floors')) + ' · ' + esc(floors) + '</div>' +
+    '<div class="font-semibold">' + esc(title) + '</div>' +
+    (a.kind === 'broadcast' ? textBlock(a.body, { main: 'text-sm mt-1' }) : textBlock(a.note, { main: 'text-sm mt-1' })) +
+    '<div class="text-xs text-slate-400 mt-1">' + esc(relTime(a.createdAt)) + (a.resolved ? ' · ' + esc(t('ปิดแล้ว', 'Cleared')) : '') + '</div></div>' +
+    (a.level === 'critical' ? '<span class="badge badge-red">' + esc(t('วิกฤต', 'Critical')) + '</span>' : '<span class="badge badge-amber">' + esc(t('เตือน', 'Warning')) + '</span>') +
+    '</div>' + (isAdmin() && !a.resolved ? '<button type="button" class="btn btn-ghost btn-sm mt-2" data-act="resolve-alarm" data-id="' + esc(a.id) + '">' + esc(t('ปิดสัญญาณ', 'Clear alarm')) + '</button>' : '') +
+    '</article>';
+}
+function sosLabel(type) {
+  const row = SOS_TYPES.find(function (s) { return s[0] === type; });
+  return row ? t(row[1], row[2]) : type;
+}
+function renderReport(switcher) {
+  return head(t('แจ้งเหตุจากห้อง', 'Report from your room'), t('ถ้าอันตรายทันที ให้กดปุ่ม SOS แทนแบบฟอร์มนี้', 'If someone is in immediate danger, use the SOS button instead of this form.')) +
+    (switcher || '') +
+    '<form data-form="leak" class="card p-4 mb-3"><h2 class="font-semibold mb-3">' + esc(t('จุดน้ำรั่วในห้อง', 'Room water leak')) + '</h2>' +
+    roomField(state.user.room || '') + phoneField(state.user.phone || '', true) +
+    '<div class="mt-3"><span class="label">' + esc(t('ความรุนแรง', 'Severity')) + '</span><div class="grid grid-cols-3 gap-2">' +
+    choice('severity', 'low', t('เล็กน้อย', 'Low'), true, '') + choice('severity', 'medium', t('ปานกลาง', 'Medium'), false, 'warn') + choice('severity', 'high', t('รุนแรง', 'High'), false, 'danger') +
+    '</div></div>' + monoFields('desc', null) +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('ส่งรายงานน้ำรั่ว', 'Submit leak report')) + '</button></form>' +
+    '<form data-form="utility" class="card p-4"><h2 class="font-semibold mb-1">' + esc(t('น้ำไหล / ไฟดับ / น้ำเปลี่ยนสี', 'Water, power, or water color')) + '</h2>' +
+    '<p class="text-sm text-slate-500 mb-3">' + esc(t('แตะสถานะที่ตรงกับห้องคุณ แล้วส่ง รายงานจะไปขึ้นบนบอร์ดทันที', 'Tap what matches your room, then send. It shows on the live board immediately.')) + '</p>' +
+    roomField(state.user.room || '') + phoneField(state.user.phone || '', true) +
+    '<div class="mt-3"><span class="label">' + esc(t('น้ำประปา', 'Tap water')) + '</span><div class="grid grid-cols-3 gap-2">' +
+    choice('water', 'flowing', t('ไหลปกติ', 'Flowing'), true, '') + choice('water', 'low', t('น้ำน้อย', 'Low'), false, 'warn') + choice('water', 'out', t('ไม่ไหล', 'Out'), false, 'danger') + '</div></div>' +
+    '<div class="mt-3"><span class="label">' + esc(t('ไฟฟ้า', 'Power')) + '</span><div class="grid grid-cols-3 gap-2">' +
+    choice('power', 'on', t('ปกติ', 'On'), true, '') + choice('power', 'partial', t('บางส่วน', 'Partial'), false, 'warn') + choice('power', 'out', t('ไฟดับ', 'Out'), false, 'danger') + '</div></div>' +
+    '<div class="mt-3"><span class="label">' + esc(t('สีน้ำ', 'Water color')) + '</span><div class="grid grid-cols-2 gap-2 sm:grid-cols-4">' +
+    choice('color', 'clear', t('ใส', 'Clear'), true, '') + choice('color', 'yellow', t('เหลือง', 'Yellow'), false, 'warn') + choice('color', 'brown', t('น้ำตาล', 'Brown'), false, 'warn') + choice('color', 'rust', t('สนิม', 'Rusty'), false, 'danger') + '</div></div>' +
+    monoFields('note', null) +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('ส่งสถานะห้อง', 'Send room status')) + '</button></form>';
+}
+function choice(name, value, label, checked, tone) {
+  return '<label class="choice ' + (tone || '') + '"><input type="radio" name="' + name + '" value="' + value + '"' + (checked ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
+}
+function checkChoice(name, value, label, checked, tone) {
+  return '<label class="choice ' + (tone || '') + '"><input type="checkbox" name="' + name + '" value="' + value + '"' + (checked ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
+}
+function buildingOptions(selected) {
+  return BUILDINGS.map(function (b) {
+    return '<option value="' + b[0] + '"' + (b[0] === selected ? ' selected' : '') + '>' + esc(state.lang === 'en' ? b[2] : b[1]) + '</option>';
+  }).join('');
+}
+
+function renderLogin() {
+  const role = (state.session.draftLogin && state.session.draftLogin.role) || 'student';
+  const d = state.session.draftLogin || {};
+  const val = function (key) { return esc(d[key] || ''); };
+  const w = state.data.waterLevel;
+  document.getElementById('loginView').innerHTML =
+    '<div class="hero-bg min-h-screen"><div class="mx-auto max-w-6xl px-4 py-4 lg:py-8">' +
+    '<div class="mb-4 flex items-center justify-between gap-3"><div class="flex items-center gap-2"><span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white">' + icon('drop') + '</span><div><div class="font-semibold leading-tight">KMITL Dorm Alert</div><div class="text-xs text-slate-500">' + esc(t('สจล. ลาดกระบัง', 'KMITL Lat Krabang')) + '</div></div></div>' +
+    '<div class="flex items-center gap-2">' + langSwitch() +
+    '<button type="button" class="icon-btn" data-act="open-calls" aria-label="' + esc(t('โทรฉุกเฉิน', 'Emergency calls')) + '">' + icon('phone') + '</button>' +
+    '<button type="button" class="icon-btn" data-act="open-setup" aria-label="' + esc(t('ตั้งค่า Firebase', 'Firebase setup')) + '">' + icon('cloud') + '</button></div></div>' +
+    '<div class="login-grid"><section class="login-hero card p-5 lg:p-7"><p class="text-xs font-semibold uppercase tracking-wider text-sky-700">KMITL · LAT KRABANG</p>' +
+    '<h1 class="mt-2 text-3xl font-semibold leading-tight">' + esc(t('ระบบแจ้งเตือนน้ำท่วมและช่วยเหลือเด็กหอ', 'Dormitory flood warning & student assistance')) + '</h1>' +
+    '<p class="mt-2 text-slate-600">' + esc(t('รถรับส่ง อาหาร เรือ แผนที่จุดไฟรั่ว กล้องน้ำหน้าหอ และสัญญาณเตือนสองทาง', 'Shuttles, food, boats, electrical-leak map, gate camera, and two-way alarms.')) + '</p>' +
+    '<div class="mt-4 flex flex-wrap gap-2">' + badge('waterLv', w.status) + '<span class="badge badge-slate">' + esc(w.cm) + ' cm</span>' +
+    '<span class="badge badge-sky">' + esc(t('โหมด', 'Mode')) + ': ' + esc(state.sync.mode === 'live' ? 'Live' : 'Demo') + '</span></div>' +
+    '<p class="mt-4 text-sm text-slate-500">' + esc(t('โทรฉุกเฉินได้ทันทีโดยไม่ต้องเข้าสู่ระบบ', 'Emergency calls work before you sign in.')) + '</p></section>' +
+    '<section class="login-form card p-5"><div class="grid grid-cols-2 gap-2 mb-4"><button type="button" class="btn ' + (role === 'student' ? 'btn-primary' : 'btn-ghost') + '" data-act="role" data-role="student">' + esc(t('นักศึกษา', 'Student')) + '</button>' +
+    '<button type="button" class="btn ' + (role === 'admin' ? 'btn-primary' : 'btn-ghost') + '" data-act="role" data-role="admin">' + esc(t('ผู้ดูแลหอ', 'Dorm staff')) + '</button></div>' +
+    '<form id="loginForm" data-form="login"><input type="hidden" name="role" value="' + esc(role) + '">' +
+    (role === 'student'
+      ? '<label class="label">' + esc(t('ชื่อ', 'Name')) + '</label><input class="input mb-3" name="name" required value="' + val('name') + '">' +
+        '<label class="label">' + esc(t('รหัสนักศึกษา', 'Student ID')) + '</label><input class="input mb-3" name="studentId" required value="' + val('studentId') + '">' +
+        roomField(d.room || '') + phoneField(d.phone || '', false)
+      : '<label class="label">' + esc(t('ชื่อเจ้าหน้าที่', 'Staff name')) + '</label><input class="input mb-3" name="name" required value="' + val('name') + '">' +
+        '<label class="label">' + esc(t('รหัสพนักงาน', 'Staff ID')) + '</label><input class="input mb-3" name="staffId" required value="' + val('staffId') + '">' +
+        '<label class="label">' + esc(t('รหัสเข้างาน', 'Access code')) + '</label><input class="input mb-3" name="code" type="password" autocomplete="current-password" required value="' + val('code') + '">' +
+        '<div class="mb-3 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-900"><b>' + esc(t('รหัสเดโม', 'Demo code')) + ':</b> ' + esc(state.local.adminCode || DEFAULT_ADMIN_CODE) + '<div class="text-xs mt-1 text-sky-800">' + esc(t('เปลี่ยนได้ในตั้งค่า รหัสนี้ล็อกแค่ในเบราว์เซอร์ งานจริงควรใช้บัญชี Firebase ของเจ้าหน้าที่', 'Change it in setup. This code is a browser gate; production staff should use Firebase accounts.')) + '</div></div>' +
+        (state.local.firebaseConfig ? '<label class="label">' + esc(t('อีเมล Firebase (ทางเลือก)', 'Firebase email (optional)')) + '</label><input class="input mb-3" name="email" type="email" value="' + val('email') + '"><label class="label">' + esc(t('รหัสผ่าน Firebase', 'Firebase password')) + '</label><input class="input mb-3" name="password" type="password" autocomplete="current-password" value="' + val('password') + '">' : '')) +
+    '<p id="loginError" class="form-error hidden mb-3"></p>' +
+    '<button class="btn btn-primary btn-block" type="submit">' + esc(role === 'student' ? t('เข้าสู่ระบบนักศึกษา', 'Enter as student') : t('เข้าสู่ระบบเจ้าหน้าที่', 'Enter as staff')) + '</button></form>' +
+    '<button type="button" class="btn btn-ghost btn-block mt-2" data-act="' + (role === 'student' ? 'demo-student' : 'demo-admin') + '">' +
+    esc(role === 'student' ? t('ทดลองเป็นนักศึกษาชั้น 1', 'Try the floor 1 student demo') : t('ทดลองเป็นเจ้าหน้าที่เวร', 'Try the staff demo')) + '</button>' +
+    '<p class="mt-3 text-xs text-slate-400">' + esc(t('ภาษาที่กำลังแสดง', 'Interface language')) + ': ' + (state.lang === 'th' ? 'ไทย' : 'English') + ' · Original tags stay on posts.</p></section></div></div></div>';
+}
+
+function floorOptions(selected) {
+  let html = '';
+  for (let i = 1; i <= 12; i++) {
+    html += '<option value="' + i + '"' + (String(selected) === String(i) ? ' selected' : '') + '>' + i + '</option>';
+  }
+  return html;
+}
+function langSwitch() {
+  return '<div class="lang-switch" role="group" aria-label="' + esc(t('ภาษา', 'Language')) + '">' +
+    '<button type="button" data-act="lang" data-lang="th" class="' + (state.lang === 'th' ? 'is-on' : '') + '" aria-pressed="' + (state.lang === 'th') + '">TH</button>' +
+    '<button type="button" data-act="lang" data-lang="en" class="' + (state.lang === 'en' ? 'is-on' : '') + '" aria-pressed="' + (state.lang === 'en') + '">EN</button></div>';
+}
+function renderChrome() {
+  const count = pendingAlarms().length;
+  const initial = (state.user.name || '?').trim().charAt(0).toUpperCase();
+  document.getElementById('header').innerHTML =
+    '<div class="threat" style="background:' + threatColor() + '"></div><div class="appbar flex items-center gap-2 px-3 py-2 lg:px-6">' +
+    '<span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white">' + icon('drop') + '</span>' +
+    '<div class="min-w-0 mr-auto"><div class="font-semibold leading-tight truncate">' + esc(t('หอสจล. Alert', 'KMITL Dorm Alert')) + '</div>' +
+    '<div class="clock-label" data-clock>—</div></div>' +
+    '<button type="button" class="icon-btn" data-act="open-setup" aria-label="' + esc(state.sync.mode === 'live' ? 'Live sync' : 'Demo mode') + '">' + icon('cloud') + '</button>' +
+    '<button type="button" class="icon-btn" data-act="sound-toggle" aria-label="' + esc(t('เสียงสัญญาณ', 'Alarm sound')) + '">' + icon(state.local.sound ? 'volume' : 'mute') + '</button>' +
+    langSwitch() +
+    '<button type="button" class="icon-btn" data-act="open-calls" aria-label="' + esc(t('โทรฉุกเฉิน', 'Emergency calls')) + '">' + icon('phone') + '</button>' +
+    '<button type="button" class="user-chip" data-act="profile-open"><span class="avatar">' + esc(initial) + '</span><span class="user-meta"><b>' + esc(state.user.name) + '</b><small>' + esc(isAdmin() ? t('ผู้ดูแลหอ', 'Dorm staff') : t('นักศึกษา', 'Student')) + (count ? ' · ' + count : '') + '</small></span></button></div>';
+
+  const side = [
+    ['home', 'home', t('หน้าหลัก', 'Home'), 'home', '', ''],
+    ['shuttle', 'bus', t('รถรับส่ง', 'Shuttle'), 'transit', 'shuttle', ''],
+    ['food', 'food', t('อาหาร', 'Food'), 'food', '', ''],
+    ['boats', 'boat', t('เรือ', 'Boats'), 'transit', 'boats', ''],
+    ['map', 'map', t('แผนที่', 'Map'), 'campus', '', ''],
+    ['reports', 'drop', t('แจ้งเหตุ', 'Reports'), 'board', '', 'report'],
+    ['news', 'bell', t('ข่าวสาร', 'News'), 'board', '', 'news']
+  ];
+  document.getElementById('sidebar').innerHTML =
+    '<div class="px-2 mb-4"><div class="text-xs font-semibold uppercase tracking-wider text-sky-700">KMITL</div><div class="font-semibold">' + esc(t('ช่วยเหลือเด็กหอ', 'Dorm assistance')) + '</div><div class="mt-2">' + (state.sync.mode === 'live' ? '<span class="badge badge-green">Live</span>' : '<span class="badge badge-slate">Demo</span>') + '</div></div>' +
+    side.map(function (item) {
+      const on = sideActive(item[0]);
+      return '<button type="button" class="side-btn' + (on ? ' is-on' : '') + '" data-act="go" data-view="' + item[3] + '"' +
+        (item[4] ? ' data-transit="' + item[4] + '"' : '') + (item[5] ? ' data-board="' + item[5] + '"' : '') + '>' +
+        icon(item[1]) + '<span>' + esc(item[2]) + '</span></button>';
+    }).join('') +
+    '<div class="mt-auto px-2 pt-4 text-xs text-slate-400">' + esc(t('ภาษาที่แสดง', 'Showing')) + ': ' + (state.lang === 'th' ? 'ไทย' : 'English') + '</div>';
+
+  const tabs = [
+    ['home', 'home', t('หน้าหลัก', 'Home'), 'home', '', ''],
+    ['travel', 'bus', t('เดินทาง', 'Travel'), 'transit', '', ''],
+    ['food', 'food', t('อาหาร', 'Food'), 'food', '', ''],
+    ['map', 'map', t('แผนที่', 'Map'), 'campus', '', ''],
+    ['report', 'bell', t('แจ้งเหตุ', 'Report'), 'board', '', 'report']
+  ];
+  document.getElementById('tabbar').innerHTML = tabs.map(function (item) {
+    const on = tabActive(item[0]);
+    const badgeHtml = item[0] === 'report' && count ? '<span class="absolute top-0 right-3 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] text-white">' + count + '</span>' : '';
+    return '<button type="button" class="tab-btn' + (on ? ' is-on' : '') + '" data-act="go" data-view="' + item[3] + '"' + (item[5] ? ' data-board="' + item[5] + '"' : '') + '>' +
+      icon(item[1]) + '<span>' + esc(item[2]) + '</span>' + badgeHtml + '</button>';
+  }).join('');
+
+  const fab = document.getElementById('fab');
+  if (isAdmin()) {
+    fab.className = 'cast';
+    fab.innerHTML = icon('megaphone');
+    fab.setAttribute('data-act', 'broadcast-open');
+    fab.setAttribute('aria-label', t('ประกาศเตือนรายชั้น', 'Broadcast a floor alarm'));
+  } else {
+    fab.className = 'sos';
+    fab.textContent = 'SOS';
+    fab.setAttribute('data-act', 'sos-open');
+    fab.setAttribute('aria-label', t('แจ้งเหตุฉุกเฉินถึงเจ้าหน้าที่', 'Alert dorm staff'));
+  }
+  const theme = document.querySelector('meta[name="theme-color"]');
+  if (theme) theme.setAttribute('content', threatColor());
+  document.body.classList.toggle('role-admin', isAdmin());
+}
+function applyLangChrome() {
+  document.documentElement.lang = state.lang === 'en' ? 'en' : 'th';
+  document.title = state.lang === 'en' ? 'KMITL Dorm · Flood Alert' : 'หอสจล. · แจ้งเตือนน้ำท่วม';
+}
+function sideActive(key) {
+  const v = state.session.view;
+  const tr = state.session.transitTab;
+  const bd = state.session.boardTab;
+  if (key === 'home') return v === 'home';
+  if (key === 'shuttle') return v === 'transit' && tr !== 'boats';
+  if (key === 'boats') return v === 'transit' && tr === 'boats';
+  if (key === 'food') return v === 'food';
+  if (key === 'map') return v === 'campus';
+  if (key === 'reports') return v === 'board' && bd !== 'news';
+  if (key === 'news') return v === 'board' && bd === 'news';
+  return false;
+}
+function tabActive(key) {
+  const v = state.session.view;
+  if (key === 'home') return v === 'home';
+  if (key === 'travel') return v === 'transit';
+  if (key === 'food') return v === 'food';
+  if (key === 'map') return v === 'campus';
+  if (key === 'report') return v === 'board';
+  return false;
+}
+
+function renderView() {
+  const sc = document.getElementById('viewScroll');
+  const top = state.session.keepScroll ? sc.scrollTop : 0;
+  let html = '';
+  if (state.session.view === 'home') html = renderHome();
+  else if (state.session.view === 'transit') html = renderTransit();
+  else if (state.session.view === 'food') html = renderFood();
+  else if (state.session.view === 'campus') html = renderCampus();
+  else html = renderBoard();
+  sc.innerHTML = html;
+  if (state.session.keepScroll) sc.scrollTop = top;
+  state.session.keepScroll = false;
+  tickClocks();
+}
+
+function renderAlarmOverlay(pending) {
+  const newest = pending[0];
+  const sig = (newest ? newest.id + newest.level : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length;
+  if (sig === state.session.alarmSig) return;
+  state.session.alarmSig = sig;
+  const root = document.getElementById('alarmRoot');
+  if (!newest) { root.innerHTML = ''; return; }
+  const critical = newest.level === 'critical';
+  let body = '';
+  if (newest.kind === 'sos') {
+    body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('นักศึกษาเรียกเจ้าหน้าที่', 'Student alert for staff')) + '</div>' +
+      '<h2 class="mt-2 text-3xl font-semibold">' + esc(sosLabel(newest.sosType)) + '</h2>' +
+      '<div class="mt-2 text-2xl font-semibold">' + esc(newest.room || '') + ' · ' + esc(buildingLabel(newest.building)) + '</div>' +
+      textBlock(newest.note, { main: 'mt-3 text-lg', wrap: '' }) +
+      '<div class="mt-2 text-sm opacity-80">' + esc(newest.reporterName || '') + ' · ' + esc(t('ชั้น', 'Floor')) + ' ' + esc(newest.floor || '—') + ' · ' + esc(relTime(newest.createdAt)) + '</div>' +
+      (newest.phone ? '<a class="btn btn-ghost mt-3" href="' + telHref(newest.phone) + '">' + icon('phone') + esc(newest.phone) + '</a>' : '') +
+      '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="resolve-alarm" data-id="' + esc(newest.id) + '">' + esc(t('รับเรื่องและปิดสัญญาณ', 'Acknowledge and clear')) + '</button>';
+  } else {
+    const floors = (newest.floors || []).indexOf('all') >= 0 ? t('ทุกชั้น', 'All floors') : (t('ชั้น', 'Floor') + ' ' + (newest.floors || []).join(', '));
+    body = '<div class="text-xs font-semibold tracking-wide opacity-80">' + esc(t('สัญญาณจากผู้ดูแลหอ', 'Alarm from dorm staff')) + ' · ' + esc(floors) + '</div>' +
+      textBlock(newest.title, { main: 'mt-2 text-3xl font-semibold' }) +
+      textBlock(newest.body, { main: 'mt-3 text-lg' }) +
+      '<div class="mt-2 text-sm opacity-80">' + esc(newest.author || '') + ' · ' + esc(relTime(newest.createdAt)) + '</div>' +
+      '<button type="button" class="btn btn-block mt-4" style="background:#fff;color:#7f1d1d" data-act="ack-alarm" data-id="' + esc(newest.id) + '">' + esc(t('รับทราบแล้ว', 'I understand')) + '</button>';
+  }
+  root.innerHTML = '<div class="alarm-screen ' + (critical ? 'critical' : 'warn') + '" role="alertdialog" aria-modal="true"><div class="alarm-card">' +
+    (pending.length > 1 ? '<div class="mb-2 text-sm">' + esc(t('อีก ' + (pending.length - 1) + ' รายการ', (pending.length - 1) + ' more after this')) + '</div>' : '') +
+    body +
+    (state.session.needSoundTap ? '<button type="button" class="btn btn-ghost btn-block mt-2" data-act="sound-on" style="color:#fff;border-color:rgba(255,255,255,.4)">' + esc(t('แตะเพื่อเปิดเสียงไซเรน', 'Tap to play the siren')) + '</button>' : '') +
+    '</div></div>';
+}
+
+function renderModal() {
+  const root = document.getElementById('modalRoot');
+  const modal = state.session.modal;
+  if (!modal) {
+    root.classList.add('hidden');
+    root.innerHTML = '';
+    document.body.classList.remove('locked');
+    return;
+  }
+  document.body.classList.add('locked');
+  root.classList.remove('hidden');
+  root.innerHTML = '<div class="modal-back" data-act="close-modal"></div><div class="modal-panel" role="document"><div class="mb-3 flex items-start justify-between gap-3"><h2 id="modalTitle" class="text-lg font-semibold">' +
+    esc(modalTitle(modal)) + '</h2><button type="button" class="icon-btn" data-act="close-modal" aria-label="' + esc(t('ปิด', 'Close')) + '">' + icon('x') + '</button></div>' +
+    modalBody(modal) + '</div>';
+}
+function modalTitle(modal) {
+  const names = {
+    setup: t('ตั้งค่า Firebase', 'Firebase setup'),
+    calls: t('โทรฉุกเฉิน', 'Emergency calls'),
+    confirm: t('ยืนยัน', 'Confirm'),
+    profile: t('โปรไฟล์', 'Profile'),
+    sos: t('แจ้งเจ้าหน้าที่ทันที', 'Alert staff now'),
+    broadcast: t('ประกาศเตือนรายชั้น', 'Floor alarm'),
+    shuttle: t('เที่ยวรถ', 'Shuttle'),
+    round: t('รอบสั่งอาหาร', 'Food round'),
+    item: t('เมนู', 'Menu item'),
+    order: t('สั่งอาหาร', 'Place order'),
+    boat: t('เรือ', 'Boat'),
+    booking: t('จองเรือ', 'Book a boat'),
+    pin: t('จุดไฟรั่ว', 'Electrical leak pin'),
+    news: t('ประกาศ', 'Announcement'),
+    water: t('ระดับน้ำและกล้อง', 'Water level & camera'),
+    'utility-note': t('หมายเหตุสถานะทางการ', 'Official status note')
+  };
+  return names[modal.name] || '';
+}
+
+function biFields(prefix, existing, single) {
+  const obj = existing || { th: '', en: '', original: state.lang };
+  const d = (state.session.modal && state.session.modal.draft) || {};
+  const th = d[prefix + 'Th'] !== undefined ? d[prefix + 'Th'] : (obj.th || '');
+  const en = d[prefix + 'En'] !== undefined ? d[prefix + 'En'] : (obj.en || '');
+  const original = d[prefix + 'Original'] !== undefined ? d[prefix + 'Original'] : (obj.original || 'th');
+  const control = function (name, value) {
+    if (single) return '<input class="input mt-1" name="' + name + '" value="' + esc(value) + '">';
+    return '<textarea class="input mt-1" name="' + name + '" rows="3">' + esc(value) + '</textarea>';
+  };
+  return '<div class="grid gap-3 sm:grid-cols-2"><label class="block"><span class="label">' + esc(t('ภาษาไทย', 'Thai')) + '</span>' + control(prefix + 'Th', th) + '</label>' +
+    '<label class="block"><span class="label">' + esc(t('ภาษาอังกฤษ', 'English')) + '</span>' + control(prefix + 'En', en) + '</label></div>' +
+    '<label class="block mt-3"><span class="label">' + esc(t('ภาษาต้นฉบับ', 'Original language')) + '</span><select class="input" name="' + prefix + 'Original">' +
+    '<option value="th"' + (original === 'th' ? ' selected' : '') + '>ไทย · TH</option>' +
+    '<option value="en"' + (original === 'en' ? ' selected' : '') + '>English · EN</option></select></label>' +
+    '<p class="mt-2 text-xs text-slate-400">' + esc(t('ระบบจะโชว์ภาษาที่ผู้ใช้เลือก และคงข้อความต้นฉบับไว้ใต้คำแปล', 'The app shows the selected language and keeps the original text under the translation.')) + '</p>';
+}
+function monoFields(prefix, existing) {
+  const obj = existing || { th: '', en: '', original: state.lang };
+  const d = (state.session.modal && state.session.modal.draft) || {};
+  const original = d[prefix + 'Original'] !== undefined ? d[prefix + 'Original'] : (obj.original || state.lang);
+  const text = d[prefix + 'Text'] !== undefined ? d[prefix + 'Text'] : ((original === 'en' ? obj.en : obj.th) || obj.th || obj.en || '');
+  return '<label class="block mt-3"><span class="label">' + esc(t('รายละเอียด', 'Details')) + '</span><textarea class="input" name="' + prefix + 'Text" rows="3">' + esc(text) + '</textarea></label>' +
+    '<label class="block mt-3"><span class="label">' + esc(t('ภาษาของข้อความนี้', 'Language of this text')) + '</span><select class="input" name="' + prefix + 'Original">' +
+    '<option value="th"' + (original !== 'en' ? ' selected' : '') + '>ไทย · TH</option><option value="en"' + (original === 'en' ? ' selected' : '') + '>English · EN</option></select></label>';
+}
+function readBi(fd, prefix) {
+  const th = String(fd.get(prefix + 'Th') || '').trim();
+  const en = String(fd.get(prefix + 'En') || '').trim();
+  let original = String(fd.get(prefix + 'Original') || 'th') === 'en' ? 'en' : 'th';
+  if (original === 'th' && !th && en) original = 'en';
+  if (original === 'en' && !en && th) original = 'th';
+  return { th: th, en: en, original: original };
+}
+function readMono(fd, prefix) {
+  const text = String(fd.get(prefix + 'Text') || '').trim();
+  const original = String(fd.get(prefix + 'Original') || 'th') === 'en' ? 'en' : 'th';
+  return { th: original === 'th' ? text : '', en: original === 'en' ? text : '', original: original };
+}
+function biOk(obj) {
+  return !!(obj.original === 'en' ? obj.en : obj.th);
+}
+function showFormError(message) {
+  const boxes = document.querySelectorAll('#modalRoot #formError, #loginError, #viewScroll #formError');
+  /* Prefer the visible form that was submitted: last matching is unsafe. Caller passes a scope via the open form. */
+  const scoped = document.querySelector('#modalRoot form #formError') || document.querySelector('#loginError') || document.querySelector('#viewScroll form #formError');
+  const el = scoped || boxes[0];
+  if (!el) { toastRaw(message); return; }
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+function modalBody(modal) {
+  if (modal.name === 'calls') return renderCalls();
+  if (modal.name === 'setup') return renderSetup();
+  if (modal.name === 'confirm') {
+    return '<p class="text-sm text-slate-600">' + esc(t(modal.th, modal.en)) + '</p><div class="mt-4 grid grid-cols-2 gap-2">' +
+      '<button type="button" class="btn btn-ghost" data-act="close-modal">' + esc(t('ยกเลิก', 'Cancel')) + '</button>' +
+      '<button type="button" class="btn ' + (modal.tone === 'danger' ? 'btn-danger' : 'btn-primary') + '" data-act="' + esc(modal.act) + '" data-id="' + esc(modal.id || '') + '" data-kind="' + esc(modal.kind || '') + '" data-round="' + esc(modal.round || '') + '">' + esc(t('ยืนยัน', 'Confirm')) + '</button></div>';
+  }
+  if (modal.name === 'profile') return profileForm();
+  if (modal.name === 'sos') return sosForm();
+  if (modal.name === 'broadcast') return broadcastForm();
+  if (modal.name === 'shuttle') return shuttleForm(modal.id);
+  if (modal.name === 'round') return roundForm(modal.id);
+  if (modal.name === 'item') return itemForm(modal.round, modal.id);
+  if (modal.name === 'order') return orderForm(modal.id);
+  if (modal.name === 'boat') return boatForm(modal.id);
+  if (modal.name === 'booking') return bookForm(modal.id);
+  if (modal.name === 'pin') return pinForm(modal.id);
+  if (modal.name === 'news') return newsForm(modal.id);
+  if (modal.name === 'water') return waterForm();
+  if (modal.name === 'utility-note') return utilityNoteForm();
+  return '';
+}
+
+function renderCalls() {
+  const groups = [
+    ['national', t('สายด่วนประเทศ', 'National hotlines')],
+    ['campus', t('ภายใน สจล.', 'On campus')]
+  ];
+  return groups.map(function (g) {
+    const rows = CONTACTS.filter(function (c) { return c.group === g[0]; });
+    return '<h3 class="mt-2 mb-2 text-sm font-semibold text-slate-500">' + esc(g[1]) + '</h3>' + rows.map(function (c) {
+      return '<a class="call-row mb-2" href="' + telHref(c.phone) + '"><span class="call-num">' + esc(c.display) + '</span><span class="min-w-0 flex-1">' +
+        textBlock(c.name, { main: 'font-semibold' }) + '<span class="text-xs text-slate-500">' + esc(tx(c.note)) + '</span></span><span class="badge badge-sky">' + esc(t('โทร', 'Call')) + '</span></a>';
+    }).join('');
+  }).join('') + '<p class="mt-3 text-xs text-slate-400">' + esc(t('เบอร์สถาบันเป็นเบอร์ที่หน่วยงานเผยแพร่ไว้ หากต่อไม่ได้ให้ใช้ 1669, 199 หรือ 191', 'Campus numbers are the published lines. If they do not connect, use 1669, 199, or 191.')) + '</p>';
+}
+
+function renderSetup() {
+  const cfg = state.local.firebaseConfig || {};
+  const field = function (key, label) {
+    return '<label class="block mb-3"><span class="label">' + esc(label) + '</span><input class="input" name="' + key + '" value="' + esc(cfg[key] || '') + '" spellcheck="false"></label>';
+  };
+  return '<p class="text-sm text-slate-600 mb-3">' + esc(t('ยังไม่ใส่คีย์ก็ใช้งานได้ทันที ข้อมูลเดโมเก็บในเครื่องนี้ เมื่อวาง Firebase config แล้วทุกเครื่องจะเห็นข้อมูลเดียวกัน', 'You can use the app before adding keys. Demo data stays on this device. After you paste a Firebase config, every device shares one live board.')) + '</p>' +
+    '<button type="button" class="btn btn-primary btn-block mb-4" data-act="close-modal">' + esc(t('ใช้โหมดทดลองต่อ', 'Continue in demo')) + '</button>' +
+    '<div class="mb-3">' + (state.sync.mode === 'live' ? '<span class="badge badge-green">Live · ' + esc((cfg.projectId || '')) + '</span>' : '<span class="badge badge-slate">Demo · localStorage</span>') +
+    (state.sync.authWarning ? '<span class="badge badge-amber ml-1">' + esc(t('ยังไม่ได้เปิด Anonymous Auth', 'Anonymous Auth is off')) + '</span>' : '') +
+    (state.sync.error ? '<p class="form-error mt-2">' + esc(state.sync.error) + '</p>' : '') + '</div>' +
+    '<form data-form="firebase">' + field('apiKey', 'apiKey') + field('authDomain', 'authDomain') + field('projectId', 'projectId') +
+    field('storageBucket', 'storageBucket') + field('messagingSenderId', 'messagingSenderId') + field('appId', 'appId') +
+    '<p id="formError" class="form-error hidden mb-3"></p>' +
+    '<button class="btn btn-primary btn-block" type="submit">' + esc(t('บันทึกและเชื่อมต่อ', 'Save and connect')) + '</button></form>' +
+    '<ol class="mt-4 list-decimal pl-5 text-sm text-slate-600 space-y-1"><li>' + esc(t('สร้างโปรเจกต์ที่ console.firebase.google.com แล้วเพิ่มเว็บแอป', 'Create a project at console.firebase.google.com and add a web app.')) + '</li>' +
+    '<li>' + esc(t('เปิด Firestore แบบ Native และเปิด Anonymous Authentication', 'Enable native Firestore and Anonymous authentication.')) + '</li>' +
+    '<li>' + esc(t('ถ้าต้องการให้เจ้าหน้าที่ใช้รหัสผ่าน ให้เปิด Email/Password ด้วย', 'Turn on Email/Password as well if staff should sign in with a password.')) + '</li>' +
+    '<li>' + esc(t('วางกฎนี้แล้ว Publish', 'Paste these rules and publish.')) + '</li></ol>' +
+    '<pre class="mt-2 overflow-auto rounded-xl bg-slate-900 p-3 text-xs text-slate-100">' + esc(FIRESTORE_RULES) + '</pre>' +
+    '<button type="button" class="btn btn-ghost btn-sm mt-2" data-act="copy-rules">' + esc(t('คัดลอกกฎ', 'Copy rules')) + '</button>' +
+    '<form data-form="admin-code" class="mt-4"><label class="label">' + esc(t('รหัสเจ้าหน้าที่บนเครื่องนี้', 'Staff code on this device')) + '</label><input class="input mb-2" name="adminCode" value="' + esc(state.local.adminCode || DEFAULT_ADMIN_CODE) + '"><button class="btn btn-ghost btn-sm" type="submit">' + esc(t('บันทึกรหัส', 'Save code')) + '</button>' +
+    '<p class="mt-2 text-xs text-slate-400">' + esc(t('รหัสนี้ไม่ถูกอัปโหลดขึ้น Firebase ผู้ที่อ่านซอร์สยังเห็นรหัสได้ งานจริงให้สร้างผู้ใช้เจ้าหน้าที่ใน Firebase Authentication', 'This code is not uploaded. Anyone who can read the source can see it. For production, create staff users in Firebase Authentication.')) + '</p></form>' +
+    '<div class="mt-4 flex flex-wrap gap-2">' +
+    (state.sync.mode === 'live' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="disconnect-firebase">' + esc(t('ตัดการเชื่อมต่อ', 'Disconnect')) + '</button>' : '') +
+    (state.sync.mode !== 'live' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="ask-reset">' + esc(t('คืนข้อมูลตัวอย่าง', 'Restore sample data')) + '</button>' : '') +
+    '</div>';
+}
+
+function profileForm() {
+  const u = state.user;
+  return '<form data-form="profile"><label class="label">' + esc(t('ชื่อ', 'Name')) + '</label><input class="input mb-3" name="name" required value="' + esc(u.name || '') + '">' +
+    (isStudent() ? roomField(u.room || '') + phoneField(u.phone || '', false) : '') +
+    '<button class="btn btn-primary btn-block" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>' +
+    '<button type="button" class="btn btn-ghost btn-block mt-2" data-act="logout">' + esc(t('ออกจากระบบ', 'Log out')) + '</button>' +
+    (isStudent() ? '<p class="mt-3 text-xs text-slate-400">' + esc(t('ตัวอย่างสัญญาณชั้น 1 ถูกเปิดไว้ ถ้าเปลี่ยนไปชั้นอื่น สัญญาณนั้นจะไม่ขึ้นจนกว่าจะกลับมาชั้น 1', 'A sample floor 1 alarm is active. Other floors will not see it.')) + '</p>' : '');
+}
+function sosForm() {
+  const u = state.user;
+  return '<form data-form="sos"><p class="text-sm text-slate-600 mb-3">' + esc(t('สัญญาณนี้ไปที่แดชบอร์ดเจ้าหน้าที่ทันที พร้อมเสียงและแบนเนอร์', 'This reaches the staff dashboard immediately, with sound and a full-screen banner.')) + '</p>' +
+    '<span class="label">' + esc(t('ประเภท', 'Type')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
+    SOS_TYPES.map(function (s, i) { return choice('sosType', s[0], t(s[1], s[2]), i === 0, s[0] === 'medical' || s[0] === 'fire' || s[0] === 'snake' ? 'danger' : ''); }).join('') +
+    '</div>' + roomField(u.room || '') + phoneField(u.phone || '', true) +
+    monoFields('note', null) +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-danger btn-block mt-3" type="submit">' + esc(t('ส่งสัญญาณฉุกเฉิน', 'Send emergency alarm')) + '</button></form>';
+}
+function broadcastForm() {
+  const floors = '<div class="grid grid-cols-4 gap-2">' + checkChoice('floor', 'all', t('ทุกชั้น', 'All'), true, 'danger') +
+    Array.from({ length: 12 }, function (_, i) { return checkChoice('floor', String(i + 1), String(i + 1), false, ''); }).join('') + '</div>';
+  return '<form data-form="broadcast"><span class="label">' + esc(t('ระดับ', 'Level')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
+    choice('level', 'critical', t('วิกฤต', 'Critical'), true, 'danger') + choice('level', 'warning', t('เฝ้าระวัง', 'Warning'), false, 'warn') + '</div>' +
+    '<span class="label">' + esc(t('ชั้นที่ได้รับ', 'Floors')) + '</span><p class="mb-2 text-xs text-slate-400">' + esc(t('เลือกได้หลายชั้น ถ้าเลือกทุกชั้นจะไม่สนชั้นย่อย', 'Pick any floors. All floors overrides the individual boxes.')) + '</p>' + floors +
+    '<div class="mt-3">' + biFields('title', null, true) + '</div><div class="mt-3">' + biFields('body', null, false) + '</div>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-danger btn-block mt-3" type="submit">' + esc(t('ส่งสัญญาณ', 'Send alarm')) + '</button></form>';
+}
+function findById(list, id) { return (list || []).find(function (x) { return x.id === id; }); }
+function shuttleForm(id) {
+  const s = findById(state.data.shuttles, id) || { time: '12:00', dest: bi('', '', state.lang), note: bi('', '', state.lang), status: 'scheduled', delayMin: 15 };
+  return '<form data-form="shuttle"><input type="hidden" name="id" value="' + esc(s.id || '') + '"><label class="label">' + esc(t('เวลาออก', 'Departure')) + '</label><input class="input mb-3" type="time" name="time" required value="' + esc(s.time) + '">' +
+    biFields('dest', s.dest, true) + '<div class="mt-3">' + biFields('note', s.note, false) + '</div>' +
+    '<label class="label mt-3">' + esc(t('สถานะ', 'Status')) + '</label><select class="input" name="status">' + ['scheduled', 'boarding', 'delayed', 'departed', 'cancelled'].map(function (st) {
+      return '<option value="' + st + '"' + (s.status === st ? ' selected' : '') + '>' + esc(statusLabel('shuttle', st).text) + '</option>';
+    }).join('') + '</select><label class="label mt-3">' + esc(t('นาทีที่ล่าช้า', 'Delay minutes')) + '</label><input class="input" type="number" min="0" max="180" name="delayMin" value="' + esc(s.delayMin || 0) + '">' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>';
+}
+function roundForm(id) {
+  const r = findById(state.data.foodRounds, id) || { title: bi('', '', state.lang), note: bi('', '', state.lang), startLabel: '11:00', endLabel: '12:00', deadline: bkkAt(12, 0), status: 'open' };
+  const date = r.deadline ? bkkParts(r.deadline) : null;
+  const dateVal = date ? (date.y + '-' + date.mo + '-' + date.d) : bkkToday();
+  return '<form data-form="round"><input type="hidden" name="id" value="' + esc(r.id || '') + '">' + biFields('title', r.title, true) +
+    '<div class="mt-3">' + biFields('note', r.note, false) + '</div>' +
+    '<div class="grid grid-cols-2 gap-3 mt-3"><label><span class="label">' + esc(t('เปิด', 'Opens')) + '</span><input class="input" type="time" name="startLabel" required value="' + esc(r.startLabel || '11:00') + '"></label>' +
+    '<label><span class="label">' + esc(t('ปิดรับ', 'Closes')) + '</span><input class="input" type="time" name="endLabel" required value="' + esc(r.endLabel || '12:00') + '"></label></div>' +
+    '<label class="label mt-3">' + esc(t('วันของเวลาปิดรับ (ใช้คำนวณหมดอายุ +24 ชม.)', 'Deadline date (expiry is 24h later)')) + '</label><input class="input" type="date" name="date" required value="' + esc(dateVal) + '">' +
+    '<label class="label mt-3">' + esc(t('สถานะ', 'Status')) + '</label><select class="input" name="status"><option value="open"' + (r.status === 'open' ? ' selected' : '') + '>' + esc(t('เปิดรับ', 'Open')) + '</option><option value="closed"' + (r.status === 'closed' ? ' selected' : '') + '>' + esc(t('ปิดรับ', 'Closed')) + '</option></select>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>';
+}
+function itemForm(roundId, id) {
+  const round = findById(state.data.foodRounds, roundId);
+  const item = round && findById(round.menu, id);
+  const m = item || { name: bi('', '', state.lang), price: 40 };
+  return '<form data-form="item"><input type="hidden" name="round" value="' + esc(roundId) + '"><input type="hidden" name="id" value="' + esc(m.id || '') + '">' +
+    biFields('name', m.name, true) + '<label class="label mt-3">' + esc(t('ราคา (บาท)', 'Price (THB)')) + '</label><input class="input" type="number" min="0" step="1" name="price" required value="' + esc(m.price != null ? m.price : 40) + '">' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>';
+}
+function orderForm(roundId) {
+  const round = findById(state.data.foodRounds, roundId);
+  if (!round) return '<p>' + esc(t('ไม่พบรอบนี้', 'Round not found.')) + '</p>';
+  const menu = round.menu || [];
+  return '<form data-form="order"><input type="hidden" name="round" value="' + esc(roundId) + '"><span class="label">' + esc(t('เมนู', 'Item')) + '</span><div class="grid gap-2">' +
+    (menu.length ? menu.map(function (m, i) {
+      return choice('itemId', m.id, tx(m.name) + ' · ฿' + m.price, i === 0, '');
+    }).join('') : '<p class="text-sm text-slate-500">' + esc(t('ยังไม่มีเมนู', 'No menu items yet.')) + '</p>') +
+    '</div><label class="label mt-3">' + esc(t('จำนวน', 'Quantity')) + '</label><select class="input" name="qty"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>' +
+    roomField(state.user.room || '') + phoneField(state.user.phone || '', true) +
+    '<label class="label mt-3">' + esc(t('หมายเหตุถึงร้าน', 'Note for the shop')) + '</label><input class="input" name="note" maxlength="140">' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit"' + (menu.length ? '' : ' disabled') + '>' + esc(t('ยืนยันออเดอร์', 'Confirm order')) + '</button></form>';
+}
+function boatForm(id) {
+  const b = findById(state.data.boats, id) || { name: 'Boat #', capacity: BOAT_CAP, status: 'available', note: bi('', '', state.lang) };
+  const status = b.status === 'maintenance' ? 'maintenance' : 'available';
+  return '<form data-form="boat"><input type="hidden" name="id" value="' + esc(b.id || '') + '"><label class="label">' + esc(t('ชื่อเรือ', 'Boat name')) + '</label><input class="input mb-3" name="name" required value="' + esc(b.name || '') + '">' +
+    '<p class="field-hint">' + esc(t('ความจุคงที่ 4 คนต่อการจองหนึ่งครั้ง เลือกว่างเพื่อล้างรายชื่อผู้โดยสาร', 'Capacity is fixed at 4 people per booking. Choose Available to clear the passenger list.')) + '</p>' +
+    '<label class="label">' + esc(t('สถานะ', 'Status')) + '</label><select class="input" name="status">' + ['available', 'maintenance'].map(function (st) {
+      return '<option value="' + st + '"' + (status === st ? ' selected' : '') + '>' + esc(statusLabel('boat', st).text) + '</option>';
+    }).join('') + '</select><div class="mt-3">' + biFields('note', b.note, false) + '</div>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>';
+}
+function bookForm(id) {
+  const b = findById(state.data.boats, id);
+  if (!b) return '<p>' + esc(t('ไม่พบเรือลำนี้', 'Boat not found.')) + '</p>';
+  const u = state.user || {};
+  return '<form data-form="booking"><input type="hidden" name="boatId" value="' + esc(b.id) + '"><p class="mb-3 text-sm text-slate-600">' + esc(b.name) + ' · ' + esc(t('ผู้โดยสารได้ 1 ถึง 4 คน', '1 to 4 passengers')) + '</p>' +
+    '<label class="label">' + esc(t('ชื่อ', 'Name')) + '</label><input class="input mb-3" name="name" required value="' + esc(u.name || '') + '">' +
+    roomField(u.room || '') + phoneField(u.phone || '', true) +
+    '<label class="label">' + esc(t('จำนวนผู้โดยสาร', 'Passengers')) + '</label><select class="input" name="passengers">' +
+    [1, 2, 3, 4].map(function (n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('ยืนยันการจอง', 'Confirm booking')) + '</button></form>';
+}
+function pinForm(id) {
+  const p = findById(state.data.pins, id);
+  const d = (state.session.modal && state.session.modal.draft) || {};
+  const lat = p ? p.lat : d.lat;
+  const lng = p ? p.lng : d.lng;
+  const severity = p ? p.severity : (d.severity || 'critical');
+  return '<form data-form="pin"><input type="hidden" name="id" value="' + esc(id || '') + '"><input type="hidden" name="lat" value="' + esc(lat) + '"><input type="hidden" name="lng" value="' + esc(lng) + '">' +
+    '<p class="text-sm text-slate-500 mb-3">' + esc(t('ตำแหน่งบนแผนที่ สจล.', 'Position on the KMITL map')) + ' ' + esc(Number(lat).toFixed(5)) + ', ' + esc(Number(lng).toFixed(5)) + '</p>' +
+    '<span class="label">' + esc(t('ระดับ', 'Severity')) + '</span><div class="grid grid-cols-2 gap-2 mb-3">' +
+    choice('severity', 'critical', t('อันตราย', 'Critical'), severity !== 'warning', 'danger') +
+    choice('severity', 'warning', t('ระวัง', 'Caution'), severity === 'warning', 'warn') + '</div>' +
+    biFields('title', p && p.title, true) + '<div class="mt-3">' + biFields('detail', p && p.detail, false) + '</div>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึกหมุด', 'Save pin')) + '</button></form>';
+}
+function newsForm(id) {
+  const n = findById(state.data.news, id) || { tag: 'info', pinned: false, title: bi('', '', state.lang), body: bi('', '', state.lang) };
+  return '<form data-form="news"><input type="hidden" name="id" value="' + esc(n.id || '') + '"><label class="label">' + esc(t('ประเภท', 'Tag')) + '</label><select class="input mb-3" name="tag">' +
+    ['info', 'warning', 'urgent'].map(function (tag) { return '<option value="' + tag + '"' + (n.tag === tag ? ' selected' : '') + '>' + esc(statusLabel('news', tag).text) + '</option>'; }).join('') +
+    '</select>' + biFields('title', n.title, true) + '<div class="mt-3">' + biFields('body', n.body, false) + '</div>' +
+    '<label class="mt-3 flex items-center gap-2 text-sm font-semibold"><input type="checkbox" name="pinned" value="1"' + (n.pinned ? ' checked' : '') + '> ' + esc(t('ปักหมุดไว้บนสุด', 'Pin to the top')) + '</label>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึกประกาศ', 'Save post')) + '</button></form>';
+}
+function waterForm() {
+  const w = state.data.waterLevel;
+  return '<form data-form="water"><label class="label">' + esc(t('สถานะ', 'Status')) + '</label><select class="input" name="status">' +
+    ['normal', 'caution', 'critical'].map(function (s) { return '<option value="' + s + '"' + (w.status === s ? ' selected' : '') + '>' + esc(statusLabel('waterLv', s).text) + '</option>'; }).join('') +
+    '</select><label class="label mt-3">' + esc(t('ระดับน้ำ (ซม.)', 'Water level (cm)')) + '</label><input class="input" type="number" min="0" max="400" name="cm" required value="' + esc(w.cm) + '">' +
+    '<div class="mt-3">' + biFields('note', w.note, false) + '</div>' +
+    '<label class="label mt-3">' + esc(t('ลิงก์ภาพสด', 'Live stream URL')) + '</label><input class="input" name="streamUrl" placeholder="https://youtube.com/live/… or https://…/stream.m3u8" value="' + esc(w.streamUrl || '') + '">' +
+    '<p class="mt-2 text-xs text-slate-400">' + esc(t('รองรับ YouTube, HLS (.m3u8) และ MP4 ถ้าเว้นว่างจะแสดงกล้องจำลองพร้อมนาฬิกาและเกจน้ำ', 'YouTube, HLS (.m3u8), and MP4 work. Leave it blank to keep the simulated camera with a clock and gauge.')) + '</p>' +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึก', 'Save')) + '</button></form>';
+}
+function utilityNoteForm() {
+  return '<form data-form="utility-note">' + biFields('note', state.data.utility.note, false) +
+    '<p id="formError" class="form-error hidden mt-3"></p><button class="btn btn-primary btn-block mt-3" type="submit">' + esc(t('บันทึกหมายเหตุ', 'Save note')) + '</button></form>';
+}
+
+function openModal(modal) {
+  state.session.modal = modal;
+  state.session.skipModalCapture = true;
+  state.session.alarmSig = '';
+  render();
+}
+function closeModal() {
+  if (state.session.modal && state.session.modal.name === 'setup') {
+    state.local.setupSeen = true;
+    savePref();
+  }
+  state.session.modal = null;
+  state.session.skipModalCapture = true;
+  render();
+}
+function captureLoginDraft() {
+  const form = document.getElementById('loginForm');
+  if (!form) return;
+  const fd = new FormData(form);
+  const next = { role: (state.session.draftLogin && state.session.draftLogin.role) || 'student' };
+  fd.forEach(function (value, key) {
+    if (key === 'role') return;
+    next[key] = value;
+  });
+  state.session.draftLogin = next;
+}
+function captureModalDraft() {
+  const form = document.querySelector('#modalRoot form');
+  if (!form || !state.session.modal) return;
+  const fd = new FormData(form);
+  const obj = {};
+  fd.forEach(function (value, key) {
+    if (obj[key] !== undefined) {
+      if (!Array.isArray(obj[key])) obj[key] = [obj[key]];
+      obj[key].push(value);
+    } else obj[key] = value;
+  });
+  state.session.modal.draft = obj;
+}
+
+function doDelete(kind, id, roundId) {
+  mutate(function (data) {
+    if (kind === 'shuttle') data.shuttles = data.shuttles.filter(function (x) { return x.id !== id; });
+    if (kind === 'boat') data.boats = data.boats.filter(function (x) { return x.id !== id; });
+    if (kind === 'pin') {
+      data.pins = data.pins.filter(function (x) { return x.id !== id; });
+      if (state.session.selectedPin === id) state.session.selectedPin = null;
+    }
+    if (kind === 'news') data.news = data.news.filter(function (x) { return x.id !== id; });
+    if (kind === 'round') {
+      data.foodRounds = data.foodRounds.filter(function (x) { return x.id !== id; });
+      data.foodOrders = data.foodOrders.filter(function (x) { return x.roundId !== id; });
+    }
+    if (kind === 'item') {
+      const round = findById(data.foodRounds, roundId);
+      if (round) round.menu = (round.menu || []).filter(function (m) { return m.id !== id; });
+      data.foodOrders = data.foodOrders.filter(function (o) { return !(o.roundId === roundId && o.itemId === id); });
+    }
+  });
+}
+
+function onClick(e) {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const act = btn.dataset.act;
+  if (act === 'lang') {
+    state.lang = btn.dataset.lang === 'en' ? 'en' : 'th';
+    savePref();
+    state.session.alarmSig = '';
+    render();
+    return;
+  }
+  if (act === 'go') {
+    state.session.view = btn.dataset.view || 'home';
+    if (btn.dataset.transit) state.session.transitTab = btn.dataset.transit;
+    if (btn.dataset.board) state.session.boardTab = btn.dataset.board;
+    state.session.keepScroll = false;
+    render();
+    document.getElementById('viewScroll').scrollTop = 0;
+    return;
+  }
+  if (act === 'subtab') {
+    state.session[btn.dataset.key] = btn.dataset.val;
+    render();
+    return;
+  }
+  if (act === 'close-modal') { closeModal(); return; }
+  if (act === 'open-setup') { openModal({ name: 'setup' }); return; }
+  if (act === 'open-calls') { openModal({ name: 'calls' }); return; }
+  if (act === 'role') {
+    captureLoginDraft();
+    state.session.draftLogin.role = btn.dataset.role;
+    render();
+    return;
+  }
+  if (act === 'demo-student') { enterDemoStudent(); return; }
+  if (act === 'demo-admin') { enterDemoAdmin(); return; }
+  if (act === 'logout') { logout(); return; }
+  if (act === 'profile-open') { openModal({ name: 'profile' }); return; }
+  if (act === 'sos-open') { openModal({ name: 'sos' }); return; }
+  if (act === 'broadcast-open') { openModal({ name: 'broadcast' }); return; }
+  if (act === 'sound-toggle') {
+    state.local.sound = !state.local.sound;
+    savePref();
+    if (state.local.sound) beep('info');
+    renderChrome();
+    return;
+  }
+  if (act === 'sound-on') {
+    state.session.needSoundTap = !beep('critical');
+    state.session.alarmSig = '';
+    renderAlarmOverlay(pendingAlarms());
+    return;
+  }
+  if (act === 'ack-alarm') {
+    const id = btn.dataset.id;
+    mutate(function (data) {
+      const alarm = findById(data.alarms, id);
+      if (!alarm) return;
+      alarm.acks = alarm.acks || [];
+      if (alarm.acks.indexOf(state.user.id) < 0) alarm.acks.push(state.user.id);
+    });
+    return;
+  }
+  if (act === 'resolve-alarm') {
+    const id = btn.dataset.id;
+    mutate(function (data) {
+      const alarm = findById(data.alarms, id);
+      if (alarm) alarm.resolved = true;
+    });
+    return;
+  }
+  if (act === 'dismiss-arrival') {
+    state.session.dismissedArrival[btn.dataset.id] = true;
+    saveSession();
+    render();
+    return;
+  }
+  if (act === 'shuttle-edit') { openModal({ name: 'shuttle', id: btn.dataset.id || '' }); return; }
+  if (act === 'shuttle-status') {
+    mutate(function (data) {
+      const s = findById(data.shuttles, btn.dataset.id);
+      if (!s) return;
+      s.status = btn.dataset.status;
+      if (s.status === 'delayed' && !s.delayMin) s.delayMin = 10;
+    });
+    return;
+  }
+  if (act === 'boat-edit') { openModal({ name: 'boat', id: btn.dataset.id || '' }); return; }
+  if (act === 'boat-book') {
+    if (!isStudent()) return;
+    openModal({ name: 'booking', id: btn.dataset.id || '' });
+    return;
+  }
+  if (act === 'boat-reset') {
+    mutate(function (data) {
+      const b = findById(data.boats, btn.dataset.id);
+      if (!b) return;
+      b.bookings = [];
+      b.status = 'available';
+      b.capacity = BOAT_CAP;
+      b.updatedAt = Date.now();
+    });
+    return;
+  }
+  if (act === 'boat-status') {
+    mutate(function (data) {
+      const b = findById(data.boats, btn.dataset.id);
+      if (!b) return;
+      b.status = btn.dataset.status === 'maintenance' ? 'maintenance' : 'available';
+      if (b.status === 'available') b.bookings = [];
+      b.capacity = BOAT_CAP;
+      b.updatedAt = Date.now();
+    });
+    return;
+  }
+  if (act === 'round-edit') { openModal({ name: 'round', id: btn.dataset.id || '' }); return; }
+  if (act === 'round-toggle') {
+    mutate(function (data) {
+      const r = findById(data.foodRounds, btn.dataset.id);
+      if (r) r.status = r.status === 'open' ? 'closed' : 'open';
+    });
+    return;
+  }
+  if (act === 'item-edit') { openModal({ name: 'item', round: btn.dataset.round, id: btn.dataset.id || '' }); return; }
+  if (act === 'order-add') { openModal({ name: 'order', id: btn.dataset.id }); return; }
+  if (act === 'order-status') {
+    mutate(function (data) {
+      const o = findById(data.foodOrders, btn.dataset.id);
+      if (o) o.status = btn.dataset.status;
+    });
+    return;
+  }
+  if (act === 'sensor-select') {
+    const sensor = findById(state.data.sensors, btn.dataset.id);
+    state.session.selectedSensor = btn.dataset.id;
+    if (sensor) state.session.mapView = { lat: sensor.lat, lng: sensor.lng, zoom: Math.max(16, (state.session.mapView && state.session.mapView.zoom) || 16) };
+    state.session.keepScroll = true;
+    render();
+    return;
+  }
+  if (act === 'sensor-toggle') { toggleSensor(btn.dataset.id); return; }
+  if (act === 'sensor-scan') { simulateSensorScan(); return; }
+  if (act === 'pin-select') {
+    state.session.selectedPin = btn.dataset.id;
+    state.session.keepScroll = true;
+    render();
+    return;
+  }
+  if (act === 'pin-edit') { openModal({ name: 'pin', id: btn.dataset.id }); return; }
+  if (act === 'news-edit') { openModal({ name: 'news', id: btn.dataset.id || '' }); return; }
+  if (act === 'water-edit') { openModal({ name: 'water' }); return; }
+  if (act === 'utility-note') { openModal({ name: 'utility-note' }); return; }
+  if (act === 'utility-set') {
+    const key = btn.dataset.key;
+    const val = btn.dataset.val;
+    mutate(function (data) {
+      data.utility[key] = val;
+      data.utility.updatedAt = Date.now();
+      data.utility.updatedBy = state.user.name;
+    });
+    return;
+  }
+  if (act === 'leak-resolve') {
+    mutate(function (data) {
+      const leak = findById(data.leaks, btn.dataset.id);
+      if (leak) leak.resolved = true;
+    });
+    return;
+  }
+  if (act === 'ask-delete') {
+    openModal({ name: 'confirm', tone: 'danger', th: 'ลบรายการนี้ถาวร?', en: 'Delete this permanently?', act: 'confirm-delete', id: btn.dataset.id, kind: btn.dataset.kind, round: btn.dataset.round || '' });
+    return;
+  }
+  if (act === 'confirm-delete') {
+    const kind = btn.dataset.kind;
+    const id = btn.dataset.id;
+    const round = btn.dataset.round;
+    state.session.modal = null;
+    state.session.skipModalCapture = true;
+    doDelete(kind, id, round);
+    return;
+  }
+  if (act === 'ask-arrive') {
+    openModal({ name: 'confirm', th: 'ประกาศว่าอาหารรอบนี้มาถึงแล้ว? ทุกคนจะเห็นแบนเนอร์', en: 'Announce that this round has arrived? Everyone will see a banner.', act: 'confirm-arrive', id: btn.dataset.id });
+    return;
+  }
+  if (act === 'confirm-arrive') {
+    const id = btn.dataset.id;
+    state.session.modal = null;
+    state.session.skipModalCapture = true;
+    mutate(function (data) {
+      const round = findById(data.foodRounds, id);
+      if (!round) return;
+      round.arrivedAt = Date.now();
+      round.status = 'closed';
+      data.foodOrders.forEach(function (o) { if (o.roundId === id) o.status = 'arrived'; });
+    });
+    scanArrivals();
+    return;
+  }
+  if (act === 'ask-reset') {
+    openModal({ name: 'confirm', tone: 'danger', th: 'ล้างข้อมูลบนเครื่องนี้แล้วใส่ตัวอย่างใหม่?', en: 'Erase on-device data and restore the sample campus?', act: 'confirm-reset' });
+    return;
+  }
+  if (act === 'confirm-reset') {
+    state.data = seed();
+    saveData();
+    state.session.modal = null;
+    state.session.selectedPin = null;
+    primeArrivals();
+    render();
+    toast('คืนข้อมูลตัวอย่างแล้ว', 'Sample data restored.');
+    return;
+  }
+  if (act === 'disconnect-firebase') { disconnectFirebase(); return; }
+  if (act === 'copy-rules') {
+    const done = function () { toast('คัดลอกกฎแล้ว', 'Rules copied.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(FIRESTORE_RULES).then(done).catch(function () { toastRaw(FIRESTORE_RULES); });
+    else toastRaw(FIRESTORE_RULES);
+  }
+}
+
+function onSubmit(e) {
+  const form = e.target.closest('form[data-form]');
+  if (!form) return;
+  const kind = form.dataset.form;
+  const fd = new FormData(form);
+  const get = function (key) { return String(fd.get(key) || '').trim(); };
+  if (kind === 'login') { submitLogin(fd, form); return; }
+  if (kind === 'firebase') { submitFirebase(fd, form); return; }
+  if (kind === 'admin-code') {
+    const code = get('adminCode');
+    if (code.length < 4) { toast('รหัสควรยาวอย่างน้อย 4 ตัว', 'Use at least 4 characters.'); return; }
+    state.local.adminCode = code;
+    savePref();
+    toast('บันทึกรหัสเจ้าหน้าที่บนเครื่องนี้แล้ว', 'Staff code saved on this device.');
+    return;
+  }
+  if (kind === 'profile') {
+    state.user.name = get('name');
+    if (isStudent()) {
+      const parsed = parseRoom(get('room'));
+      const phone = parsePhone(get('phone'), false);
+      if (!parsed) { showFormError(roomError()); return; }
+      if (!phone) { showFormError(phoneError()); return; }
+      applyStay(parsed, phone.phone);
+    }
+    saveSession();
+    closeModal();
+    toast('บันทึกโปรไฟล์แล้ว', 'Profile saved.');
+    return;
+  }
+  if (kind === 'sos') { submitSos(fd); return; }
+  if (kind === 'broadcast') { submitBroadcast(fd); return; }
+  if (kind === 'shuttle') { submitShuttle(fd); return; }
+  if (kind === 'round') { submitRound(fd); return; }
+  if (kind === 'item') { submitItem(fd); return; }
+  if (kind === 'order') { submitOrder(fd); return; }
+  if (kind === 'boat') { submitBoat(fd); return; }
+  if (kind === 'booking') { submitBooking(fd); return; }
+  if (kind === 'pin') { submitPin(fd); return; }
+  if (kind === 'news') { submitNews(fd); return; }
+  if (kind === 'water') { submitWater(fd); return; }
+  if (kind === 'utility-note') {
+    const note = readBi(fd, 'note');
+    mutate(function (data) {
+      data.utility.note = note;
+      data.utility.updatedAt = Date.now();
+      data.utility.updatedBy = state.user.name;
+    });
+    closeModal();
+    return;
+  }
+  if (kind === 'leak') { submitLeak(fd, form); return; }
+  if (kind === 'utility') { submitUtility(fd, form); return; }
+}
+
+function submitLogin(fd, form) {
+  const role = String(fd.get('role') || 'student');
+  const name = String(fd.get('name') || '').trim();
+  const err = form.querySelector('#loginError');
+  const fail = function (th, en) { err.textContent = t(th, en); err.classList.remove('hidden'); };
+  if (!name) { fail('กรอกชื่อก่อน', 'Enter your name.'); return; }
+  if (role === 'admin') {
+    const email = String(fd.get('email') || '').trim();
+    const password = String(fd.get('password') || '');
+    const code = String(fd.get('code') || '');
+    if (email && password && state.local.firebaseConfig) {
+      loginAdminEmail(email, password, name, String(fd.get('staffId') || '').trim(), err);
+      return;
+    }
+    if (code.trim() !== String(state.local.adminCode || DEFAULT_ADMIN_CODE)) {
+      fail('รหัสเจ้าหน้าที่ไม่ถูกต้อง', 'Staff code is incorrect.');
+      return;
+    }
+    state.user = { id: 'staff-' + (String(fd.get('staffId') || 'staff').trim() || 'staff'), role: 'admin', name: name, staffId: String(fd.get('staffId') || '').trim(), building: '', floor: 1, room: '', phone: '' };
+    finishLogin();
+    return;
+  }
+  const studentId = String(fd.get('studentId') || '').trim();
+  const parsed = parseRoom(fd.get('room'));
+  const phone = parsePhone(fd.get('phone'), false);
+  if (!studentId) { fail('กรอกรหัสนักศึกษา', 'Enter a student ID.'); return; }
+  if (!parsed) { fail(roomError(), roomError()); return; }
+  if (!phone) { fail(phoneError(), phoneError()); return; }
+  state.user = {
+    id: 'stu-' + studentId,
+    role: 'student',
+    name: name,
+    studentId: studentId,
+    building: parsed.building,
+    floor: parsed.floor,
+    room: parsed.canonical,
+    phone: phone.phone
+  };
+  finishLogin();
+}
+async function loginAdminEmail(email, password, name, staffId, err) {
+  try {
+    await loadFirebaseSdk();
+    if (!firebase.apps.length) await connectFirebase(state.local.firebaseConfig, { silent: true });
+    await firebase.auth().signInWithEmailAndPassword(email, password);
+    state.user = { id: 'staff-' + (staffId || email), role: 'admin', name: name, staffId: staffId, email: email, building: '', floor: 1, room: '', phone: '' };
+    finishLogin();
+  } catch (e) {
+    err.textContent = e.message || String(e);
+    err.classList.remove('hidden');
+  }
+}
+function enterDemoStudent() {
+  ensureAudio();
+  state.user = { id: 'stu-demo', role: 'student', name: 'อารยา วงศ์สุวรรณ', studentId: '66010001', building: '1', floor: 1, room: '1-109', phone: '0812345678' };
+  finishLogin();
+}
+function enterDemoAdmin() {
+  ensureAudio();
+  state.user = { id: 'staff-demo', role: 'admin', name: 'วิชัย รักษ์หอ', staffId: 'STF-014', building: '', floor: 1, room: '', phone: '' };
+  finishLogin();
+}
+function finishLogin() {
+  ensureAudio();
+  saveSession();
+  state.session.view = 'home';
+  state.session.heard = {};
+  state.session.alarmSig = '';
+  render();
+  scanAlarms();
+}
+async function logout() {
+  state.user = null;
+  state.session.modal = null;
+  state.session.view = 'home';
+  state.session.alarmSig = '';
+  saveSession();
+  try {
+    if (window.firebase && firebase.apps && firebase.apps.length) {
+      await firebase.auth().signOut();
+      await firebase.auth().signInAnonymously();
+    }
+  } catch (e) { /* demo mode */ }
+  render();
+}
+
+function submitSos(fd) {
+  const note = readMono(fd, 'note');
+  if (!biOk(note)) { showFormError(t('บอกสิ่งที่เกิดขึ้นสั้น ๆ', 'Describe what is happening.')); return; }
+  const parsed = parseRoom(fd.get('room'));
+  const phone = parsePhone(fd.get('phone'), true);
+  if (!parsed) { showFormError(roomError()); return; }
+  if (!phone) { showFormError(phoneError()); return; }
+  applyStay(parsed, phone.phone);
+  saveSession();
+  mutate(function (data) {
+    data.alarms.unshift({
+      id: uid('sos'),
+      kind: 'sos',
+      level: 'critical',
+      sosType: String(fd.get('sosType') || 'other'),
+      room: parsed.canonical,
+      building: parsed.building,
+      floor: parsed.floor,
+      phone: phone.phone,
+      note: note,
+      reporterName: state.user.name,
+      reporterId: state.user.id,
+      createdAt: Date.now(),
+      resolved: false,
+      acks: []
+    });
+  });
+  closeModal();
+  toast('ส่งถึงเจ้าหน้าที่แล้ว', 'Staff have been alerted.');
+}
+function submitBroadcast(fd) {
+  const title = readBi(fd, 'title');
+  const body = readBi(fd, 'body');
+  if (!biOk(title) || !biOk(body)) { showFormError(t('กรอกหัวข้อและรายละเอียดภาษาต้นฉบับ', 'Enter the original-language title and details.')); return; }
+  let floors = fd.getAll('floor');
+  if (!floors.length || floors.indexOf('all') >= 0) floors = ['all'];
+  mutate(function (data) {
+    data.alarms.unshift({
+      id: uid('cast'),
+      kind: 'broadcast',
+      level: String(fd.get('level') || 'critical') === 'warning' ? 'warning' : 'critical',
+      floors: floors,
+      title: title,
+      body: body,
+      author: state.user.name,
+      createdAt: Date.now(),
+      resolved: false,
+      acks: []
+    });
+  });
+  closeModal();
+  toast('ส่งสัญญาณแล้ว', 'Alarm sent.');
+}
+function submitShuttle(fd) {
+  const dest = readBi(fd, 'dest');
+  if (!biOk(dest)) { showFormError(t('กรอกปลายทางภาษาต้นฉบับ', 'Enter the original-language destination.')); return; }
+  const time = String(fd.get('time') || '');
+  mutate(function (data) {
+    const row = {
+      id: String(fd.get('id') || '') || uid('bus'),
+      time: time,
+      dest: dest,
+      note: readBi(fd, 'note'),
+      status: String(fd.get('status') || 'scheduled'),
+      delayMin: Number(fd.get('delayMin') || 0)
+    };
+    const idx = data.shuttles.findIndex(function (s) { return s.id === row.id; });
+    if (idx >= 0) data.shuttles[idx] = row;
+    else data.shuttles.push(row);
+  });
+  closeModal();
+}
+function combineDeadline(dateStr, timeStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !/^\d{2}:\d{2}$/.test(timeStr)) return Date.now();
+  return Date.parse(dateStr + 'T' + timeStr + ':00+07:00');
+}
+function submitRound(fd) {
+  const title = readBi(fd, 'title');
+  if (!biOk(title)) { showFormError(t('กรอกชื่อรอบภาษาต้นฉบับ', 'Enter the original-language round name.')); return; }
+  const endLabel = String(fd.get('endLabel') || '12:00');
+  mutate(function (data) {
+    const id = String(fd.get('id') || '') || uid('round');
+    const prev = findById(data.foodRounds, id);
+    const row = {
+      id: id,
+      title: title,
+      note: readBi(fd, 'note'),
+      startLabel: String(fd.get('startLabel') || '11:00'),
+      endLabel: endLabel,
+      deadline: combineDeadline(String(fd.get('date') || bkkToday()), endLabel),
+      status: String(fd.get('status') || 'open') === 'closed' ? 'closed' : 'open',
+      createdAt: prev ? prev.createdAt : Date.now(),
+      arrivedAt: prev ? prev.arrivedAt : null,
+      menu: prev ? prev.menu : []
+    };
+    const idx = data.foodRounds.findIndex(function (r) { return r.id === id; });
+    if (idx >= 0) data.foodRounds[idx] = row;
+    else data.foodRounds.unshift(row);
+  });
+  closeModal();
+}
+function submitItem(fd) {
+  const name = readBi(fd, 'name');
+  if (!biOk(name)) { showFormError(t('กรอกชื่อเมนูภาษาต้นฉบับ', 'Enter the original-language item name.')); return; }
+  const price = Number(fd.get('price'));
+  if (!isFinite(price) || price < 0) { showFormError(t('ใส่ราคาให้ถูกต้อง', 'Enter a valid price.')); return; }
+  const roundId = String(fd.get('round') || '');
+  mutate(function (data) {
+    const round = findById(data.foodRounds, roundId);
+    if (!round) return;
+    round.menu = round.menu || [];
+    const id = String(fd.get('id') || '') || uid('item');
+    const prev = findById(round.menu, id);
+    const row = { id: id, name: name, price: Math.round(price), createdAt: prev ? prev.createdAt : Date.now() };
+    const idx = round.menu.findIndex(function (m) { return m.id === id; });
+    if (idx >= 0) round.menu[idx] = row;
+    else round.menu.push(row);
+  });
+  closeModal();
+}
+function submitOrder(fd) {
+  const roundId = String(fd.get('round') || '');
+  const itemId = String(fd.get('itemId') || '');
+  const parsed = parseRoom(fd.get('room'));
+  const phone = parsePhone(fd.get('phone'), true);
+  if (!itemId) { showFormError(t('เลือกเมนู', 'Choose an item.')); return; }
+  if (!parsed) { showFormError(roomError()); return; }
+  if (!phone) { showFormError(phoneError()); return; }
+  const round = findById(state.data.foodRounds, roundId);
+  if (!round || round.status !== 'open') { showFormError(t('รอบนี้ปิดรับแล้ว', 'This round is closed.')); return; }
+  applyStay(parsed, phone.phone);
+  saveSession();
+  mutate(function (data) {
+    data.foodOrders.unshift({
+      id: uid('ord'),
+      roundId: roundId,
+      itemId: itemId,
+      qty: Math.max(1, Math.min(5, Number(fd.get('qty') || 1))),
+      room: parsed.canonical,
+      building: parsed.building,
+      floor: parsed.floor,
+      phone: phone.phone,
+      name: state.user.name,
+      userId: state.user.id,
+      status: 'pending',
+      note: String(fd.get('note') || '').trim(),
+      createdAt: Date.now()
+    });
+  });
+  closeModal();
+  toast('รับออเดอร์แล้ว', 'Order placed.');
+}
+function submitBoat(fd) {
+  const name = String(fd.get('name') || '').trim();
+  if (!name) { showFormError(t('กรอกชื่อเรือ', 'Enter a boat name.')); return; }
+  mutate(function (data) {
+    const id = String(fd.get('id') || '') || uid('boat');
+    const prev = findById(data.boats, id);
+    const status = String(fd.get('status')) === 'maintenance' ? 'maintenance' : 'available';
+    const row = {
+      id: id,
+      name: name,
+      capacity: BOAT_CAP,
+      status: status,
+      bookings: status === 'available' ? [] : (prev && prev.bookings ? prev.bookings : []),
+      note: readBi(fd, 'note'),
+      updatedAt: Date.now()
+    };
+    if (prev && !row.note.th && !row.note.en) row.note = prev.note;
+    if (status !== 'maintenance' && boatOccupied(row) > 0) row.status = 'full';
+    const idx = data.boats.findIndex(function (b) { return b.id === id; });
+    if (idx >= 0) data.boats[idx] = row;
+    else data.boats.push(row);
+  });
+  closeModal();
+}
+function submitBooking(fd) {
+  if (!isStudent()) { showFormError(t('เฉพาะนักศึกษาจองเรือได้', 'Only students can book a boat.')); return; }
+  const name = String(fd.get('name') || '').trim();
+  const parsed = parseRoom(fd.get('room'));
+  const phone = parsePhone(fd.get('phone'), true);
+  const passengers = Number(fd.get('passengers'));
+  if (!name) { showFormError(t('กรอกชื่อ', 'Enter your name.')); return; }
+  if (!parsed) { showFormError(roomError()); return; }
+  if (!phone) { showFormError(phoneError()); return; }
+  if (!isFinite(passengers) || passengers < 1 || passengers > BOAT_CAP) {
+    showFormError(t('จำนวนผู้โดยสารต้องอยู่ระหว่าง 1 ถึง 4 คน', 'Passengers must be between 1 and 4.'));
+    return;
+  }
+  const boatId = String(fd.get('boatId') || '');
+  const target = findById(state.data.boats, boatId);
+  if (!target || boatLiveStatus(target) !== 'available') {
+    showFormError(t('เรือลำนี้เต็มหรือกำลังใช้งานอยู่', 'This boat is full or already in use.'));
+    return;
+  }
+  applyStay(parsed, phone.phone);
+  state.user.name = name;
+  saveSession();
+  mutate(function (data) {
+    const boat = findById(data.boats, boatId);
+    if (!boat || boatLiveStatus(boat) !== 'available') return;
+    boat.bookings = boat.bookings || [];
+    boat.bookings.push({
+      id: uid('book'),
+      name: name,
+      room: parsed.canonical,
+      phone: phone.phone,
+      passengers: passengers,
+      userId: state.user.id,
+      createdAt: Date.now()
+    });
+    boat.capacity = BOAT_CAP;
+    boat.status = 'full';
+    boat.updatedAt = Date.now();
+  });
+  closeModal();
+  toast('จองเรือแล้ว', 'Boat booked.');
+}
+function submitPin(fd) {
+  const title = readBi(fd, 'title');
+  if (!biOk(title)) { showFormError(t('กรอกชื่อจุดภาษาต้นฉบับ', 'Enter the original-language pin title.')); return; }
+  const lat = Number(fd.get('lat'));
+  const lng = Number(fd.get('lng'));
+  if (!isFinite(lat) || !isFinite(lng)) { showFormError(t('ตำแหน่งหมุดไม่ถูกต้อง', 'Pin location is invalid.')); return; }
+  mutate(function (data) {
+    const id = String(fd.get('id') || '') || uid('pin');
+    const prev = findById(data.pins, id);
+    const row = {
+      id: id,
+      lat: lat,
+      lng: lng,
+      severity: String(fd.get('severity')) === 'warning' ? 'warning' : 'critical',
+      title: title,
+      detail: readBi(fd, 'detail'),
+      createdAt: prev ? prev.createdAt : Date.now()
+    };
+    const idx = data.pins.findIndex(function (p) { return p.id === id; });
+    if (idx >= 0) data.pins[idx] = row;
+    else data.pins.push(row);
+    state.session.selectedPin = id;
+  });
+  closeModal();
+}
+function submitNews(fd) {
+  const title = readBi(fd, 'title');
+  const body = readBi(fd, 'body');
+  if (!biOk(title) || !biOk(body)) { showFormError(t('กรอกหัวข้อและเนื้อหาภาษาต้นฉบับ', 'Enter the original-language title and body.')); return; }
+  mutate(function (data) {
+    const id = String(fd.get('id') || '') || uid('news');
+    const prev = findById(data.news, id);
+    const row = {
+      id: id,
+      tag: ['info', 'warning', 'urgent'].indexOf(String(fd.get('tag'))) >= 0 ? String(fd.get('tag')) : 'info',
+      pinned: fd.get('pinned') === '1',
+      title: title,
+      body: body,
+      author: state.user.name,
+      createdAt: prev ? prev.createdAt : Date.now()
+    };
+    const idx = data.news.findIndex(function (n) { return n.id === id; });
+    if (idx >= 0) data.news[idx] = row;
+    else data.news.unshift(row);
+  });
+  closeModal();
+}
+function submitWater(fd) {
+  const cm = Number(fd.get('cm'));
+  if (!isFinite(cm) || cm < 0 || cm > 400) { showFormError(t('ระดับน้ำต้องอยู่ระหว่าง 0 ถึง 400 ซม.', 'Water level must be between 0 and 400 cm.')); return; }
+  const url = String(fd.get('streamUrl') || '').trim();
+  if (url && !/^rtsp:/i.test(url) && !safeHttpUrl(url)) { showFormError(t('ลิงก์ต้องขึ้นต้นด้วย http, https หรือ rtsp', 'The URL must start with http, https, or rtsp.')); return; }
+  mutate(function (data) {
+    data.waterLevel.status = ['normal', 'caution', 'critical'].indexOf(String(fd.get('status'))) >= 0 ? String(fd.get('status')) : 'caution';
+    data.waterLevel.cm = Math.round(cm);
+    data.waterLevel.note = readBi(fd, 'note');
+    data.waterLevel.streamUrl = url;
+    data.waterLevel.updatedAt = Date.now();
+    data.waterLevel.updatedBy = state.user.name;
+  });
+  closeModal();
+}
+function submitLeak(fd, form) {
+  const desc = readMono(fd, 'desc');
+  const parsed = parseRoom(fd.get('room'));
+  const phone = parsePhone(fd.get('phone'), true);
+  const el = form.querySelector('#formError');
+  const fail = function (msg) { el.textContent = msg; el.classList.remove('hidden'); };
+  if (!parsed) { fail(roomError()); return; }
+  if (!phone) { fail(phoneError()); return; }
+  if (!biOk(desc)) { fail(t('กรอกรายละเอียด', 'Enter a description.')); return; }
+  applyStay(parsed, phone.phone);
+  saveSession();
+  mutate(function (data) {
+    data.leaks.unshift({
+      id: uid('leak'),
+      room: parsed.canonical,
+      building: parsed.building,
+      floor: parsed.floor,
+      phone: phone.phone,
+      severity: ['low', 'medium', 'high'].indexOf(String(fd.get('severity'))) >= 0 ? String(fd.get('severity')) : 'medium',
+      desc: desc,
+      reporter: state.user.name,
+      createdAt: Date.now(),
+      resolved: false
+    });
+  });
+  toast('ส่งจุดน้ำรั่วแล้ว', 'Leak report sent.');
+}
+function submitUtility(fd, form) {
+  const parsed = parseRoom(fd.get('room'));
+  const phone = parsePhone(fd.get('phone'), true);
+  const el = form.querySelector('#formError');
+  const fail = function (msg) { el.textContent = msg; el.classList.remove('hidden'); };
+  if (!parsed) { fail(roomError()); return; }
+  if (!phone) { fail(phoneError()); return; }
+  applyStay(parsed, phone.phone);
+  saveSession();
+  const note = readMono(fd, 'note');
+  mutate(function (data) {
+    data.utilityReports.unshift({
+      id: uid('util'),
+      room: parsed.canonical,
+      building: parsed.building,
+      floor: parsed.floor,
+      phone: phone.phone,
+      water: String(fd.get('water') || 'flowing'),
+      power: String(fd.get('power') || 'on'),
+      color: String(fd.get('color') || 'clear'),
+      note: note,
+      name: state.user.name,
+      createdAt: Date.now()
+    });
+  });
+  toast('ส่งสถานะห้องแล้ว', 'Room status sent.');
+}
+function submitFirebase(fd) {
+  const config = {
+    apiKey: String(fd.get('apiKey') || '').trim(),
+    authDomain: String(fd.get('authDomain') || '').trim(),
+    projectId: String(fd.get('projectId') || '').trim(),
+    storageBucket: String(fd.get('storageBucket') || '').trim(),
+    messagingSenderId: String(fd.get('messagingSenderId') || '').trim(),
+    appId: String(fd.get('appId') || '').trim()
+  };
+  if (!config.apiKey || !config.authDomain || !config.projectId || !config.appId) {
+    showFormError(t('ต้องมี apiKey, authDomain, projectId และ appId', 'apiKey, authDomain, projectId, and appId are required.'));
+    return;
+  }
+  const button = document.querySelector('#modalRoot form[data-form="firebase"] button[type="submit"]');
+  if (button) button.disabled = true;
+  connectFirebase(config).then(function (ok) {
+    if (ok) {
+      state.local.setupSeen = true;
+      savePref();
+      state.session.modal = null;
+      state.session.skipModalCapture = true;
+      render();
+    } else if (button) button.disabled = false;
+  });
+}
+
+function tickClocks() {
+  const label = new Intl.DateTimeFormat(state.lang === 'th' ? 'th-TH' : 'en-GB', {
+    timeZone: 'Asia/Bangkok',
+    weekday: 'short', day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  }).format(new Date());
+  document.querySelectorAll('[data-clock]').forEach(function (el) { el.textContent = label; });
+}
+function isTyping() {
+  const ae = document.activeElement;
+  if (!ae) return false;
+  return ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(ae.tagName) >= 0;
+}
+let campusMap = null;
+function mountCampusMap() {
+  if (campusMap) {
+    campusMap.remove();
+    campusMap = null;
+  }
+  const el = document.getElementById('campusMap');
+  if (!el) return;
+  if (typeof L === 'undefined') {
+    el.textContent = t('โหลดแผนที่ไม่ได้ ตรวจการเชื่อมต่อแล้วเปิดหน้านี้ใหม่', 'The map could not load. Check the connection and reopen this page.');
+    return;
+  }
+  const saved = state.session.mapView;
+  const map = L.map(el, { scrollWheelZoom: true }).setView([CAMPUS_LAT, CAMPUS_LNG], CAMPUS_ZOOM);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  campusMap = map;
+  if (saved) map.setView([saved.lat, saved.lng], saved.zoom);
+  else if ((state.data.sensors || []).length) {
+    map.fitBounds(L.latLngBounds(state.data.sensors.map(function (s) { return [s.lat, s.lng]; })), { padding: [28, 28], maxZoom: 16 });
+  }
+  const byId = {};
+  (state.data.sensors || []).forEach(function (s) { byId[s.id] = s; });
+  Object.keys(SENSOR_LINES).forEach(function (key) {
+    const latlngs = SENSOR_LINES[key].map(function (id) {
+      const s = byId[id];
+      return s ? [s.lat, s.lng] : null;
+    }).filter(Boolean);
+    if (latlngs.length > 1) {
+      L.polyline(latlngs, { color: '#ea580c', weight: 3, opacity: .72, dashArray: '7 8', interactive: false }).addTo(map);
+    }
+  });
+  const sensorMarkers = {};
+  (state.data.sensors || []).forEach(function (s) {
+    const lat = Number(s.lat);
+    const lng = Number(s.lng);
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    const leak = s.status === 'leak';
+    const marker = L.marker([lat, lng], {
+      title: s.id + ' ' + tx(s.road),
+      keyboard: true,
+      zIndexOffset: leak ? 400 : 0,
+      icon: L.divIcon({
+        className: 'sensor-pin',
+        html: '<span class="sensor-dot ' + (leak ? 'leak' : 'safe') + (s.id === state.session.selectedSensor ? ' sel' : '') + '"></span>',
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
+      })
+    }).addTo(map);
+    marker.bindPopup(sensorPopupHtml(s), { maxWidth: 280, autoPan: true });
+    sensorMarkers[s.id] = marker;
+    marker.on('click', function (ev) {
+      L.DomEvent.stop(ev);
+      if (ev.originalEvent) ev.originalEvent._pinHandled = true;
+      const center = map.getCenter();
+      state.session.mapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+      state.session.selectedSensor = s.id;
+      state.session.keepScroll = true;
+      render();
+    });
+    marker.on('popupopen', function (ev) {
+      const btn = ev.popup.getElement() && ev.popup.getElement().querySelector('[data-act="sensor-toggle"]');
+      if (!btn) return;
+      L.DomEvent.on(btn, 'click', function (e) {
+        L.DomEvent.stop(e);
+        toggleSensor(s.id);
+      });
+    });
+  });
+  if (state.session.selectedSensor && sensorMarkers[state.session.selectedSensor]) {
+    sensorMarkers[state.session.selectedSensor].openPopup();
+  }
+  (state.data.pins || []).forEach(function (p) {
+    const lat = Number(p.lat);
+    const lng = Number(p.lng);
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    const marker = L.marker([lat, lng], {
+      title: tx(p.title),
+      keyboard: true,
+      icon: L.divIcon({
+        className: 'leak-pin',
+        html: '<span class="leak-dot ' + (p.severity === 'critical' ? 'crit' : 'warn') + (p.id === state.session.selectedPin ? ' sel' : '') + '"></span>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      })
+    }).addTo(map);
+    marker.on('click', function (ev) {
+      L.DomEvent.stop(ev);
+      if (ev.originalEvent) ev.originalEvent._pinHandled = true;
+      const center = map.getCenter();
+      state.session.mapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+      state.session.selectedPin = p.id;
+      state.session.keepScroll = true;
+      render();
+    });
+  });
+  map.on('moveend', function () {
+    if (campusMap !== map) return;
+    const center = map.getCenter();
+    state.session.mapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+  });
+  if (isAdmin()) {
+    map.on('click', function (ev) {
+      if (ev.originalEvent && ev.originalEvent._pinHandled) return;
+      const center = map.getCenter();
+      state.session.mapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+      openModal({
+        name: 'pin',
+        draft: {
+          lat: Math.round(ev.latlng.lat * 1e6) / 1e6,
+          lng: Math.round(ev.latlng.lng * 1e6) / 1e6,
+          severity: 'critical',
+          titleOriginal: state.lang,
+          detailOriginal: state.lang
+        }
+      });
+    });
+  }
+  setTimeout(function () { if (campusMap === map) map.invalidateSize(); }, 80);
+}
+function render() {
+  try {
+    if (!state.session.skipModalCapture) captureModalDraft();
+    state.session.skipModalCapture = false;
+    captureLoginDraft();
+    const loggedIn = !!state.user;
+    document.getElementById('loginView').classList.toggle('hidden', loggedIn);
+    document.getElementById('appView').classList.toggle('on', loggedIn);
+    document.getElementById('tabbar').classList.toggle('on', loggedIn);
+    document.getElementById('fab').classList.toggle('hidden', !loggedIn);
+    applyLangChrome();
+    if (!loggedIn) renderLogin();
+    else {
+      renderChrome();
+      renderView();
+    }
+    renderModal();
+    renderAlarmOverlay(state.user ? pendingAlarms() : []);
+    mountCampusMap();
+  } catch (err) {
+    console.error(err);
+    const view = document.getElementById('viewScroll');
+    if (view) view.textContent = err && err.message ? err.message : 'Render error';
+  }
+}
+
+function boot() {
+  loadPref();
+  loadData();
+  loadSession();
+  if (state.user && state.user.role === 'student') {
+    const parsed = parseRoom(state.user.room);
+    if (parsed) {
+      state.user.room = parsed.canonical;
+      state.user.building = parsed.building;
+      state.user.floor = parsed.floor;
+    } else if (state.user.id === 'stu-demo') {
+      state.user.room = '1-109';
+      state.user.building = '1';
+      state.user.floor = 1;
+    }
+    const phone = parsePhone(state.user.phone, false);
+    if (phone && phone.phone) state.user.phone = phone.phone;
+    else if (state.user.id === 'stu-demo') state.user.phone = '0812345678';
+    else state.user.phone = '';
+    saveSession();
+  }
+  primeArrivals();
+  document.body.addEventListener('click', onClick);
+  document.body.addEventListener('submit', function (e) {
+    if (e.target && e.target.closest && e.target.closest('form')) {
+      e.preventDefault();
+      onSubmit(e);
+    }
+  });
+  document.body.addEventListener('pointerdown', function () { ensureAudio(); });
+  document.body.addEventListener('input', function (e) {
+    const el = e.target;
+    if (!el || !el.dataset) return;
+    if (el.dataset.kind === 'phone') {
+      const next = String(el.value || '').replace(/\D/g, '').slice(0, 10);
+      if (el.value !== next) el.value = next;
+    }
+    if (el.dataset.kind === 'room') {
+      let v = String(el.value || '').replace(/[^\d-]/g, '');
+      const cut = v.indexOf('-');
+      if (cut >= 0) v = v.slice(0, cut + 1) + v.slice(cut + 1).replace(/-/g, '');
+      const bits = v.split('-');
+      bits[0] = (bits[0] || '').slice(0, 2);
+      if (bits.length > 1) bits[1] = bits[1].slice(0, 4);
+      v = bits.join('-');
+      if (el.value !== v) el.value = v;
+    }
+  });
+  document.body.addEventListener('change', function (e) {
+    const input = e.target;
+    if (!input || input.name !== 'floor' || input.type !== 'checkbox' || !input.form) return;
+    const boxes = input.form.querySelectorAll('input[name="floor"]');
+    if (input.value === 'all' && input.checked) {
+      boxes.forEach(function (box) { if (box !== input) box.checked = false; });
+    } else if (input.checked) {
+      boxes.forEach(function (box) { if (box.value === 'all') box.checked = false; });
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && state.session.modal) closeModal();
+  });
+  window.addEventListener('storage', function (ev) {
+    if (ev.key !== DATA_KEY || !ev.newValue) return;
+    try {
+      const incoming = normalize(JSON.parse(ev.newValue));
+      if ((incoming.rev || 0) < (state.data.rev || 0)) return;
+      state.data = incoming;
+      purgeExpired(state.data);
+      render();
+      scanAlarms();
+    } catch (e) { /* ignore broken tab data */ }
+  });
+  window.addEventListener('online', function () { if (db) schedulePush(); });
+  if (!state.local.setupSeen) state.session.modal = { name: 'setup' };
+  render();
+  loadWeather();
+  if (state.local.firebaseConfig && state.local.firebaseConfig.apiKey) {
+    connectFirebase(state.local.firebaseConfig, { silent: true });
+  }
+  setInterval(tickClocks, 1000);
+  setInterval(function () {
+    const expired = purgeExpired(state.data);
+    if (expired) { saveData(); schedulePush(); }
+    scanAlarms();
+    const quietView = state.session.view === 'home' || state.session.view === 'transit';
+    if ((expired || quietView) && !isTyping() && !state.session.modal) {
+      state.session.keepScroll = true;
+      render();
+    }
+  }, 30000);
+  if (state.user) scanAlarms();
+}
+boot();
+</script>
+</body>
+</html>
