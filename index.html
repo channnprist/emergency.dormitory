@@ -260,15 +260,23 @@
   }
   .call-row:hover { border-color: #fdba74; }
   .call-num { font-variant-numeric: tabular-nums; font-weight: 700; color: #c2410c; min-width: 72px; }
+  #alarmRoot { position: fixed; inset: 0; z-index: 10000; pointer-events: none; }
+  #alarmRoot:empty { display: none; }
   .alarm-screen {
-    position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center;
-    padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: #dc2626; color: #fff; pointer-events: auto;
+    animation: alarm-flash .7s steps(2, end) infinite;
   }
   .alarm-screen.critical { background: #7f1d1d; color: #fff; }
   .alarm-screen.warn { background: #9a3412; color: #fff; }
   .alarm-card {
-    width: min(560px, 100%); background: rgba(0, 0, 0, .22);
-    border: 1px solid rgba(255,255,255,.28); border-radius: 24px; padding: 20px;
+    width: min(560px, 100%); background: rgba(0, 0, 0, .28);
+    border: 1px solid rgba(255,255,255,.35); border-radius: 24px; padding: 20px;
+    animation: alert-pop .38s cubic-bezier(.2, 1.45, .35, 1) both;
+  }
+  @keyframes alert-pop {
+    from { transform: translateY(28px) scale(.9); opacity: 0; }
+    to { transform: none; opacity: 1; }
   }
   .alarm-screen .orig-badge { background: rgba(255,255,255,.18); color: #fff; }
   .alarm-screen .orig-sub, .alarm-screen .sub-orig { color: rgba(255,255,255,.8); }
@@ -1175,6 +1183,19 @@ function normalize(data) {
   d.utilityReports = Array.isArray(d.utilityReports) ? d.utilityReports : [];
   d.news = Array.isArray(d.news) ? d.news : [];
   d.alarms = Array.isArray(d.alarms) ? d.alarms : [];
+  d.alarms.forEach(function (a) {
+    if (!a) return;
+    if (Array.isArray(a.floors)) a.floors = a.floors.map(String);
+    a.acks = Array.isArray(a.acks) ? a.acks : [];
+  });
+  if (d.popupRev !== 1) {
+    d.alarms.forEach(function (a) {
+      if (!a || a.resolved || a.kind !== 'broadcast') return;
+      a.acks = a.acks.filter(function (id) { return id && id === a.authorId; });
+    });
+    d.popupRev = 1;
+    d._popupMigrated = true;
+  }
   if (!d.utility) {
     d.utility = { water: 'flowing', power: 'on', color: 'clear', note: bi('', '', 'th'), updatedAt: Date.now(), updatedBy: '' };
   }
@@ -1235,6 +1256,18 @@ function savePref() {
 function saveData() {
   localStorage.setItem(DATA_KEY, JSON.stringify(state.data));
 }
+function syncFromStorage() {
+  if (!state.user) return false;
+  let incoming;
+  try { incoming = JSON.parse(localStorage.getItem(DATA_KEY) || 'null'); } catch (e) { return false; }
+  if (!incoming || (incoming.rev || 0) <= (state.data.rev || 0)) return false;
+  state.data = normalize(incoming);
+  purgeExpired(state.data);
+  state.session.alarmSig = '';
+  render();
+  scanAlarms();
+  return true;
+}
 function loadData() {
   try {
     const raw = localStorage.getItem(DATA_KEY);
@@ -1242,8 +1275,10 @@ function loadData() {
   } catch (e) {
     state.data = seed();
   }
-  if (purgeExpired(state.data)) saveData();
-  else if (!localStorage.getItem(DATA_KEY)) saveData();
+  if (purgeExpired(state.data) || state.data._popupMigrated || !localStorage.getItem(DATA_KEY)) {
+    delete state.data._popupMigrated;
+    saveData();
+  }
 }
 function saveSession() {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({
@@ -1550,8 +1585,8 @@ function scanAlarms() {
   if (sos) armSosExpiry(sos);
   if (newest && !state.session.heard[newest.id]) {
     state.session.heard[newest.id] = true;
-    if (document.visibilityState === 'visible') state.session.needSoundTap = !startSiren();
-    else if (newest.kind === 'sos') notifyAdminSos(newest);
+    state.session.needSoundTap = false;
+    if (document.visibilityState !== 'visible' && newest.kind === 'sos') notifyAdminSos(newest);
     if (state.session.modal && newest.kind !== 'sos') {
       state.session.modal = null;
       state.session.skipModalCapture = true;
@@ -2266,19 +2301,14 @@ function renderAlarmOverlay(pending) {
   const newest = pending[0];
   const sos = pending.filter(function (a) { return freshSos(a); })[0];
   const visible = document.visibilityState !== 'hidden';
-  if (newest && visible) {
-    if (!startSiren()) state.session.needSoundTap = true;
-    const banner = document.getElementById('bannerRoot');
-    if (banner && banner.querySelector('[data-sos-banner]')) banner.innerHTML = '';
-  } else if (!visible) {
-    stopSiren();
-    if (sos) notifyAdminSos(sos);
-  } else if (!newest) stopSiren();
-  const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + (state.session.needSoundTap ? '1' : '0') + '|' + pending.length + '|' + (visible ? 'v' : 'h') + '|' + (isAdmin() ? 'a' : 's');
+  if (!newest) stopSiren();
+  else if (!visible && sos) notifyAdminSos(sos);
+  const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + pending.length + '|' + (visible ? 'v' : 'h') + '|' + (isAdmin() ? 'a' : 's');
   if (sig === state.session.alarmSig) return;
   state.session.alarmSig = sig;
   const root = document.getElementById('alarmRoot');
-  if (!newest || (sos && !visible)) { root.innerHTML = ''; return; }
+  if (!root) return;
+  if (!newest) { root.innerHTML = ''; return; }
   const critical = newest.level === 'critical' || newest.kind === 'sos';
   let body = '';
   if (newest.kind === 'sos') {
@@ -2299,9 +2329,7 @@ function renderAlarmOverlay(pending) {
   }
   root.innerHTML = '<div class="alarm-screen ' + (newest.kind === 'sos' ? 'sos ' : '') + (critical ? 'critical' : 'warn') + '" role="alertdialog" aria-modal="true"><div class="alarm-card">' +
     (pending.length > 1 ? '<div class="mb-2 text-sm">' + esc(t('อีก ' + (pending.length - 1) + ' รายการ', (pending.length - 1) + ' more after this')) + '</div>' : '') +
-    body +
-    (state.session.needSoundTap ? '<button type="button" class="btn btn-ghost btn-block mt-2" data-act="sound-on" style="color:#fff;border-color:rgba(255,255,255,.4)">' + esc(t('แตะเพื่อเปิดเสียงไซเรน', 'Tap to play the siren')) + '</button>' : '') +
-    '</div></div>';
+    body + '</div></div>';
 }
 
 function renderModal() {
@@ -3129,7 +3157,7 @@ function submitSos(fd) {
   closeModal();
   state.session.view = 'alerts';
   render();
-  toast('ส่งสัญญาณขอความช่วยเหลือ SOS ไปยังผู้ดูแลหอพักเรียบร้อยแล้ว', 'SOS sent to Dormitory Admin');
+  toast('ส่งแล้ว จอแดงเด้งบนหน้าผู้ดูแลที่เปิดอยู่ในเบราว์เซอร์เดียวกัน', 'Sent. The red screen opens on a dorm-staff page open in this same browser.');
 }
 function submitBroadcast(fd) {
   const title = readBi(fd, 'title');
@@ -3154,7 +3182,7 @@ function submitBroadcast(fd) {
   });
   closeModal();
   if (!pendingAlarms().some(function (a) { return a.kind === 'sos'; })) stopSiren();
-  toast(floors.indexOf('all') >= 0 ? 'ส่งให้นักศึกษาทุกคนที่เปิดเว็บอยู่แล้ว เครื่องผู้ดูแลไม่ดัง' : 'ส่งให้นักศึกษาชั้นที่เลือกที่เปิดเว็บอยู่แล้ว เครื่องผู้ดูแลไม่ดัง', floors.indexOf('all') >= 0 ? 'Sent at once to every student who is on the site. Staff devices stay quiet.' : 'Sent at once to students on the site on the selected floors. Staff devices stay quiet.');
+  toast(floors.indexOf('all') >= 0 ? 'ส่งแล้ว จอแดงเด้งบนหน้านักศึกษาทุกคนที่เปิดอยู่ในเบราว์เซอร์เดียวกัน' : 'ส่งแล้ว จอแดงเด้งบนหน้านักศึกษาชั้นที่เลือก ที่เปิดอยู่ในเบราว์เซอร์เดียวกัน', floors.indexOf('all') >= 0 ? 'Sent. The red screen opens on every student page open in this same browser.' : 'Sent. The red screen opens on student pages in this same browser whose floor was selected.');
 }
 function submitShuttle(fd) {
   const dest = readBi(fd, 'dest');
@@ -3759,28 +3787,21 @@ function boot() {
   });
   window.addEventListener('storage', function (ev) {
     if (ev.key !== DATA_KEY || !ev.newValue) return;
-    try {
-      const incoming = normalize(JSON.parse(ev.newValue));
-      if ((incoming.rev || 0) < (state.data.rev || 0)) return;
-      state.data = incoming;
-      purgeExpired(state.data);
-      render();
-      scanAlarms();
-    } catch (e) { /* ignore broken tab data */ }
+    syncFromStorage();
   });
   window.addEventListener('online', function () { if (db) schedulePush(); });
   document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') syncFromStorage();
     state.session.alarmSig = '';
     const pending = state.user ? pendingAlarms() : [];
     const sos = pending.filter(function (a) { return a.kind === 'sos'; })[0];
-    if (document.visibilityState === 'visible') {
-      if (pending.length) startSiren();
-    } else {
+    if (document.visibilityState !== 'visible') {
       stopSiren();
       if (sos) notifyAdminSos(sos);
     }
     renderAlarmOverlay(pending);
   });
+  setInterval(syncFromStorage, 1000);
   if (!state.local.setupSeen) state.session.modal = { name: 'setup' };
   render();
   loadWeather();
