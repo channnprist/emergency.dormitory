@@ -260,6 +260,12 @@
   }
   .call-row:hover { border-color: #fdba74; }
   .call-num { font-variant-numeric: tabular-nums; font-weight: 700; color: #c2410c; min-width: 72px; }
+  .alert-split { display: grid; gap: 12px; }
+  @media (min-width: 800px) { .alert-split { grid-template-columns: 1fr 1fr; align-items: start; } }
+  .alert-col { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px; min-width: 0; }
+  .alert-col h2 { margin: 0 0 4px; font-size: 1rem; font-weight: 700; }
+  .alert-col.staff { border-top: 4px solid #ea580c; }
+  .alert-col.sos { border-top: 4px solid #dc2626; }
   #alarmRoot { position: fixed; inset: 0; z-index: 10000; pointer-events: none; }
   #alarmRoot:empty { display: none; }
   .alarm-screen {
@@ -1253,8 +1259,13 @@ function savePref() {
     setupSeen: state.local.setupSeen
   }));
 }
+let alarmHub = null;
+try { alarmHub = new BroadcastChannel('kmitl-dorm-flood-v1'); } catch (e) { alarmHub = null; }
 function saveData() {
   localStorage.setItem(DATA_KEY, JSON.stringify(state.data));
+  if (alarmHub) {
+    try { alarmHub.postMessage({ rev: state.data.rev || 0 }); } catch (err) { /* this tab still has the saved copy */ }
+  }
 }
 function syncFromStorage() {
   if (!state.user) return false;
@@ -1568,13 +1579,13 @@ function pendingAlarms() {
     }
     if (a.kind !== 'broadcast' || !isStudent()) return false;
     if ((a.acks || []).indexOf(state.user.id) >= 0) return false;
-    const floors = a.floors || [];
+    const floors = (a.floors || []).map(String);
     if (floors.indexOf('all') >= 0) return true;
     if (floors.indexOf(floor) < 0) return false;
     const floorNum = Number(floor);
     const building = Number(state.user.building);
     if (floorNum >= 6 && floorNum <= 10) return building >= 9 && building <= 12;
-    return floorNum >= 1 && floorNum <= 5 && building >= 1 && building <= 12;
+    return floorNum >= 1 && floorNum <= 5 && (building === 0 || (building >= 1 && building <= 12));
   }).sort(function (a, b) { return b.createdAt - a.createdAt; });
 }
 
@@ -2074,23 +2085,36 @@ function renderDorm() {
   if (tab === 'room') return isAdmin() ? renderStatus(switcher) : renderReport(switcher);
   return renderFood(switcher);
 }
-function renderAlerts() {
-  const alarms = (state.data.alarms || []).filter(function (a) {
+function visibleAlarms(kind) {
+  return (state.data.alarms || []).filter(function (a) {
+    if (!a || a.kind !== kind) return false;
+    if (kind === 'sos') return isAdmin();
     if (isAdmin()) return true;
-    if (a.kind === 'sos') return a.reporterId === state.user.id;
-    if (a.kind !== 'broadcast') return false;
-    const floors = a.floors || [];
+    const floors = (a.floors || []).map(String);
     return floors.indexOf('all') >= 0 || floors.indexOf(String(state.user.floor || '')) >= 0;
-  }).sort(function (a, b) { return b.createdAt - a.createdAt; });
+  }).sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+}
+function historyColumn(kind, title, hint) {
+  const rows = visibleAlarms(kind);
+  return '<section class="alert-col ' + kind + '"><h2>' + esc(title) + '</h2><p class="text-xs text-slate-500 mb-3">' + esc(hint) + '</p>' +
+    (rows.length ? rows.map(alarmHistoryCard).join('') : '<div class="text-sm text-center text-slate-500 py-6">' + esc(t('ยังไม่มีรายการ', 'Nothing here yet.')) + '</div>') +
+    '</section>';
+}
+function renderAlerts() {
   return head(t('สัญญาณและ SOS', 'Alerts and SOS'), isAdmin()
-    ? t('SOS ที่ยังไม่รับทราบและเกิดภายใน 5 นาทีจะดังบนหน้านี้จนกว่าจะกดรับทราบเหตุ', 'An SOS from the last 5 minutes sounds on this page until you acknowledge it.')
-    : t('SOS ส่งถึงผู้ดูแลหอเท่านั้น เครื่องของคุณจะไม่ส่งเสียงไซเรน', 'An SOS goes to dorm staff only. This device does not sound the siren.')) +
+    ? t('SOS ของนักศึกษาเด้งจอแดงบนหน้าผู้ดูแลที่เปิดอยู่ในเบราว์เซอร์นี้', 'A student SOS opens the red screen on a staff page open in this browser.')
+    : t('สัญญาณของผู้ดูแลเด้งจอแดงบนหน้านักศึกษาที่เปิดอยู่ในเบราว์เซอร์นี้', 'A staff alarm opens the red screen on a student page open in this browser.')) +
     (state.session.sosConfirm ? '<div class="card p-3 mb-3 text-sm" style="background:#ecfdf5;border-color:#86efac;color:#166534">' + esc(t('ส่งสัญญาณขอความช่วยเหลือ SOS ไปยังผู้ดูแลหอพักเรียบร้อยแล้ว', 'SOS sent to Dormitory Admin')) + '</div>' : '') +
     (isAdmin()
       ? '<button type="button" class="btn btn-danger btn-block mb-3" data-act="broadcast-open">' + esc(t('ส่งสัญญาณถึงชั้น', 'Send a floor alarm')) + '</button>'
       : '<button type="button" class="btn btn-danger btn-block mb-3" data-act="sos-open">SOS · ' + esc(t('เรียกเจ้าหน้าที่', 'Call staff')) + '</button>') +
     '<button type="button" class="btn btn-ghost btn-block mb-4" data-act="open-calls">' + icon('phone') + esc(t('โทรฉุกเฉิน', 'Emergency calls')) + '</button>' +
-    (alarms.length ? alarms.map(alarmHistoryCard).join('') : '<div class="card p-6 text-sm text-center text-slate-500">' + esc(t('ยังไม่มีสัญญาณ', 'No alarms yet.')) + '</div>');
+    (isAdmin()
+      ? '<div class="alert-split">' +
+        historyColumn('broadcast', t('ผู้ดูแลหอส่ง', 'Sent by dorm staff'), t('ประวัติสัญญาณที่ผู้ดูแลหอส่งถึงนักศึกษา', 'Alarms dorm staff sent to students')) +
+        historyColumn('sos', t('นักเรียนส่งถึงผู้ดูแล', 'Students to dorm staff'), t('ประวัติ SOS ที่นักศึกษาส่งมาให้ผู้ดูแลหอ เห็นได้เฉพาะผู้ดูแลหอ', 'SOS alerts students sent to dorm staff. Only dorm staff can see this list.')) +
+        '</div>'
+      : historyColumn('broadcast', t('ผู้ดูแลหอส่ง', 'Sent by dorm staff'), t('ประวัติสัญญาณที่ผู้ดูแลหอส่งถึงนักศึกษา', 'Alarms dorm staff sent to students')));
 }
 function boardTabBtn(val, label, current, key) {
   return '<button type="button" class="btn btn-sm ' + (current === val ? 'btn-primary' : 'btn-ghost') + '" data-act="subtab" data-key="' + (key || 'boardTab') + '" data-val="' + val + '">' + esc(label) + '</button>';
@@ -2136,7 +2160,7 @@ function alarmHistoryCard(a) {
   return '<article class="card p-3 mb-2"><div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="text-xs text-slate-400">' + esc(a.kind === 'sos' ? t('นักศึกษา → เจ้าหน้าที่', 'Student → staff') : t('เจ้าหน้าที่ → ชั้น', 'Staff → floors')) + ' · ' + esc(floors) + '</div>' +
     '<div class="font-semibold">' + esc(title) + '</div>' +
     (a.kind === 'broadcast' ? textBlock(a.body, { main: 'text-sm mt-1' }) : textBlock(a.note, { main: 'text-sm mt-1' })) +
-    '<div class="text-xs text-slate-400 mt-1">' + esc(relTime(a.createdAt)) + (a.acknowledged ? ' · ' + esc(t('รับทราบแล้ว', 'Acknowledged')) : '') + (a.resolved ? ' · ' + esc(t('ปิดแล้ว', 'Cleared')) : '') + (isAdmin() && a.kind === 'sos' && a.phone ? ' · ' + esc(a.phone) : '') + '</div></div>' +
+    '<div class="text-xs text-slate-400 mt-1">' + esc(a.kind === 'sos' ? (a.reporterName || '') : (a.author || '')) + ' · ' + esc(relTime(a.createdAt)) + (a.acknowledged ? ' · ' + esc(t('รับทราบแล้ว', 'Acknowledged')) : '') + (a.resolved ? ' · ' + esc(t('ปิดแล้ว', 'Cleared')) : '') + (isAdmin() && a.kind === 'sos' && a.phone ? ' · ' + esc(a.phone) : '') + '</div></div>' +
     (a.level === 'critical' ? '<span class="badge badge-red">' + esc(t('วิกฤต', 'Critical')) + '</span>' : '<span class="badge badge-amber">' + esc(t('เตือน', 'Warning')) + '</span>') +
     '</div>' + (isAdmin() && !a.resolved ? '<button type="button" class="btn btn-ghost btn-sm mt-2" data-act="resolve-alarm" data-id="' + esc(a.id) + '">' + esc(t('ปิดสัญญาณ', 'Clear alarm')) + '</button>' : '') +
     '</article>';
@@ -2304,10 +2328,11 @@ function renderAlarmOverlay(pending) {
   if (!newest) stopSiren();
   else if (!visible && sos) notifyAdminSos(sos);
   const sig = (newest ? newest.id + newest.level + newest.kind : 'none') + '|' + state.lang + '|' + pending.length + '|' + (visible ? 'v' : 'h') + '|' + (isAdmin() ? 'a' : 's');
-  if (sig === state.session.alarmSig) return;
-  state.session.alarmSig = sig;
   const root = document.getElementById('alarmRoot');
   if (!root) return;
+  const missing = !!(newest && !root.querySelector('.alarm-screen'));
+  if (sig === state.session.alarmSig && !missing) return;
+  state.session.alarmSig = sig;
   if (!newest) { root.innerHTML = ''; return; }
   const critical = newest.level === 'critical' || newest.kind === 'sos';
   let body = '';
@@ -3789,6 +3814,7 @@ function boot() {
     if (ev.key !== DATA_KEY || !ev.newValue) return;
     syncFromStorage();
   });
+  if (alarmHub) alarmHub.onmessage = function () { syncFromStorage(); };
   window.addEventListener('online', function () { if (db) schedulePush(); });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') syncFromStorage();
